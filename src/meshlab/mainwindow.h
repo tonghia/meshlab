@@ -50,7 +50,7 @@
 #include <QProgressBar>
 #include <QNetworkAccessManager>
 
-// Note the number of recent files is limited by the number of 
+// Note the number of recent files is limited by the number of
 // shortcuts for quick opening 1..9
 #define MAXRECENTFILES 9
 
@@ -389,6 +389,7 @@ private:
 	QMenu *filterMenuSampling;
 	QMenu *filterMenuTexture;
 	QMenu *filterMenuCamera;
+	QMenu *filterMenuNTest;
 
 	QMenu *editMenu;
 

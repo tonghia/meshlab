@@ -43,7 +43,7 @@ Q_DECLARE_METATYPE(Eigen::VectorXd)
 class FilterPlugin : virtual public MeshLabPlugin, virtual public MeshLabPluginLogger
 {
 public:
-	/** 
+	/**
 	 * @brief The FilterClass enum represents the set of keywords that must be used to categorize a filter.
 	 * Each filter can belong to one or more filtering class, or-ed together.
 	 */
@@ -68,7 +68,8 @@ public:
 		PointSet       = 0x08000,
 		Measure        = 0x10000, /*!<  Filters that compute measures and information on meshes.*/
 		Polygonal      = 0x20000, /*!<  Filters that works on polygonal and quad meshes.*/
-		Camera         = 0x40000  /*!<  Filters that works on shot of mesh and raster.*/
+		Camera         = 0x40000, /*!<  Filters that works on shot of mesh and raster.*/
+		NTest          = 0x80000
 	};
 
 
@@ -79,7 +80,7 @@ public:
 	virtual ~FilterPlugin() {}
 
 
-	/** 
+	/**
 	 * @brief The very short string (a few words) describing each filtering action
 	 * This string is used also to define the menu entry
 	 */
@@ -93,7 +94,7 @@ public:
 	 */
 	virtual QString pythonFilterName(ActionIDType f) const;
 
-	/** 
+	/**
 	 * @brief The long, formatted string describing each filtering action.
 	 * This string is printed in the top of the parameter window
 	 * so it should be at least one or two paragraphs long. The more the better.
@@ -110,7 +111,7 @@ public:
 	 */
 	virtual QString filterInfo(ActionIDType filter) const = 0;
 
-	/** 
+	/**
 	 * @brief The FilterClass describes in which generic class of filters it fits.
 	 * This choice affect the submenu in which each filter will be placed
 	 * For example filters that perform an action only on the selection will be placed in the Selection Class
@@ -128,17 +129,17 @@ public:
 	 * to MeshModel::updateDataMask(...)
 	 */
 	virtual int getRequirements(const QAction*) { return MeshModel::MM_NONE; }
-	
+
 	/**
 	 * @brief This function should require true if the glContext is used by the
 	 * filter. Without this, the glContext will remain set to nullptr on non-GUI
 	 * softwares that will use the filter (E.G. PyMeshLab).
 	 * Note: every filter that uses the glContext should first check if
-	 * glContext != nullptr. 
+	 * glContext != nullptr.
 	 */
 	virtual bool requiresGLContext(const QAction*) const {return false;}
 
-	/** 
+	/**
 	 * @brief The FilterPrecondition mask is used to explicitate what kind of data a filter really needs to be applied.
 	 * For example algorithms that compute per face quality have as precondition the existence of faces
 	 * (but quality per face is not a precondition, because quality per face is created by these algorithms)
@@ -149,7 +150,7 @@ public:
 	 */
 	virtual int getPreConditions(const QAction*) const { return MeshModel::MM_NONE; }
 
-	/** 
+	/**
 	 * @brief Function used by the framework to get info about the mesh properties changed by the filter.
 	 * It is widely used by the meshlab's preview system.
 	 * TO BE REPLACED WITH = 0
@@ -178,7 +179,7 @@ public:
 			unsigned int& postConditionMask,
 			vcg::CallBackPos* cb) = 0;
 
-	/** 
+	/**
 	 * \brief tests if a filter is applicable to a mesh.
 	 * This function is a handy wrapper used by the framework for the \a getPreConditions callback;
 	 * For instance a colorize by quality filter cannot be applied to a mesh without per-vertex-quality.
@@ -189,7 +190,7 @@ public:
 
 	enum FilterArity { NONE = 0, SINGLE_MESH = 1, FIXED = 2, VARIABLE = 3, UNKNOWN_ARITY = 4 };
 
-	/** 
+	/**
 	 * @brief this function informs the MeshLab core on how many meshes the filter will work on.
 	 * Valid value:
 	 * - SINGLE_MESH: the filter works just on the current mesh
@@ -228,9 +229,9 @@ public:
 	 */
 	static void wrongActionCalled(const QAction*);
 
-	/** 
+	/**
 	 * Generate the mask of attributes would be created IF the MeshFilterInterface filt would has been called on MeshModel mm
-	 * BE CAREFUL! this function does NOT change in anyway the state of the MeshModel!!!! 
+	 * BE CAREFUL! this function does NOT change in anyway the state of the MeshModel!!!!
 	 */
 	int previewOnCreatedAttributes(const QAction* act, const MeshModel& mm) const;
 

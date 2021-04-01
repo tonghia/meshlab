@@ -47,8 +47,8 @@
 
 QProgressBar *MainWindow::qb;
 
-MainWindow::MainWindow(): 
-	httpReq(this), 
+MainWindow::MainWindow():
+	httpReq(this),
 	gpumeminfo(NULL),
 	defaultGlobalParams(meshlab::defaultGlobalParameterList()),
 	PM(meshlab::pluginManagerInstance()),
@@ -85,7 +85,7 @@ MainWindow::MainWindow():
 	catch (const MLException& e) {
 		QMessageBox::warning(this, "Error while loading plugins.", e.what());
 	}
-	
+
 	//disable previously disabled plugins
 	QStringList disabledPlugins = settings.value("DisabledPlugins").value<QStringList>();
 	for (MeshLabPlugin* fp : PM.pluginIterator(true)){
@@ -106,7 +106,7 @@ MainWindow::MainWindow():
 	QIcon icon;
 	icon.addPixmap(QPixmap(":images/eye48.png"));
 	setWindowIcon(icon);
-	
+
 	QVariant vers = settings.value(MeshLabApplication::versionRegisterKeyName());
 	//should update those values only after I run MeshLab for the very first time or after I installed a new version
 	if (!vers.isValid() || vers.toString() < MeshLabApplication::appVer())
@@ -732,11 +732,13 @@ void MainWindow::fillFilterMenu()
 	filterMenu->addMenu(filterMenuTexture);
 	filterMenuCamera = new MenuWithToolTip(tr("Camera"), this);
 	filterMenu->addMenu(filterMenuCamera);
+	filterMenuNTest = new MenuWithToolTip(tr("NTest"), this);
+	filterMenu->addMenu(filterMenuNTest);
 
 
 	//this is used just to fill the menus with alhabetical order
 	std::map<QString, FilterPlugin*> mapFilterPlugins;
-	
+
 	//populate the map
 	for (FilterPlugin* fpi : PM.filterPluginIterator()){
 		for (QAction* act : fpi->actions()){
@@ -829,6 +831,10 @@ void MainWindow::fillFilterMenu()
 		{
 			filterMenuCamera->addAction(filterAction);
 		}
+		if (filterClass & FilterPlugin::NTest)
+		{
+			filterMenuNTest->addAction(filterAction);
+		}
 		//  MeshFilterInterface::Generic :
 		if (filterClass == 0)
 		{
@@ -909,7 +915,7 @@ void MainWindow::updateAllPluginsActions()
 	fillFilterMenu();
 	fillRenderMenu();
 	fillEditMenu();
-	
+
 	//update toolbars
 	decoratorToolBar->clear();
 	for(DecoratePlugin *iDecorate: PM.decoratePluginIterator()) {
@@ -918,7 +924,7 @@ void MainWindow::updateAllPluginsActions()
 				decoratorToolBar->addAction(decorateAction);
 		}
 	}
-	
+
 	editToolBar->clear();
 	editToolBar->addAction(suspendEditModeAct);
 	for(EditPlugin *iEditFactory: PM.editPluginFactoryIterator()) {
@@ -930,17 +936,17 @@ void MainWindow::updateAllPluginsActions()
 		}
 	}
 	editToolBar->addSeparator();
-	
+
 	filterToolBar->clear();
 	updateFilterToolBar();
-	
+
 	//TODO update the searcher: this seems to be an impossible task due to unreadable code.
 	//for now, just close and reopen meshlab....
 	/*
 	disconnect(searchShortCut, SIGNAL(activated()), searchButton, SLOT(openMenu()));
 	wama.clear();
 	delete searchMenu;
-	
+
 	initSearchEngine();
 	int longest = longestActionWidthInAllMenus();
 	searchMenu = new SearchMenu(wama, 15, searchButton, longest);
@@ -1132,7 +1138,7 @@ void MainWindow::connectionDone(QNetworkReply *reply)
 		if (dontRemindMeAboutUpgradeVal)
 			return;
 	}
-	
+
 	if (settings.contains(checkForMonthlyAndBetasVar)){
 		checkForMonthlyAndBetasVal = settings.value(checkForMonthlyAndBetasVar).toBool();;
 	}
@@ -1189,7 +1195,7 @@ void MainWindow::connectionDone(QNetworkReply *reply)
 			message +=
 					"<big> <a href=\"https://www.meshlab.net/#download\">Download</a></big></center>";
 		}
-		
+
 		msgBox.setText(
 					"<center>You are using an old version of MeshLab.<br><br>"
 					"Please, upgrade to the new version!<br><br>"
@@ -1211,7 +1217,7 @@ void MainWindow::connectionDone(QNetworkReply *reply)
 			settings.setValue(checkForMonthlyAndBetasVar, true);
 			if (!checkForMonthlyAndBetasVal) {
 				//the user changed the states: he now wants to check for betas
-				//need to check again with properly set 
+				//need to check again with properly set
 				checkForUpdates(false);
 			}
 		}
