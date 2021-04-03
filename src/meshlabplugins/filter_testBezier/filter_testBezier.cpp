@@ -1752,7 +1752,7 @@ std::map<std::string, QVariant> TestBezierPlugin::applyFilter(
 								ex_1st_track = false;
 								tracked_index = total_tracked;
 								track_mesh[Cal_index_k(x_i, y_i, expanded_y, k_max)] = ex_bound;
-								xy[Cal_index_k(x_i, y_i, expanded_y, k_max)]->C().SetHSVColor(0, 100, 100); // red color
+								xy[Cal_index_k(x_i, y_i, expanded_y, k_max)]->C().SetHSVColor(0, 1.0f, 1.0f); // red color
 
 								find = true;
 								stop_loop++;
@@ -1865,7 +1865,7 @@ std::map<std::string, QVariant> TestBezierPlugin::applyFilter(
 				{
 					track_mesh[Cal_index_k(x, y, expanded_y, k_max)] = in_bound;
 					// debug
-					xy[Cal_index_k(x, y, expanded_y, k_max)]->C().SetHSVColor(60, 100, 39.2); // Yellow & Brown color
+                    xy[Cal_index_k(x, y, expanded_y, k_max)]->C().SetHSVColor(0.6f, 1.0f, 0.392f); // Yellow & Brown color
 					CVertexO temp = *xy[Cal_index_k(x, y, expanded_y, k_max)];
 					points_list.push_back(temp);
 					total_inter_points++;
@@ -1954,7 +1954,7 @@ std::map<std::string, QVariant> TestBezierPlugin::applyFilter(
 									no_norm_8_neigh(track_mesh, x_pre_inter, y_pre_inter, expanded_y, k_max))
 							{
 								//track_mesh[Cal_index_k(x_pre_inter, y_pre_inter, expanded_y, k_max)] = in_bound; // set ex to in
-								xy[Cal_index_k(x_pre_inter, y_pre_inter, expanded_y, k_max)]->C().SetHSVColor(30, 100, 100); // orange color
+								xy[Cal_index_k(x_pre_inter, y_pre_inter, expanded_y, k_max)]->C().SetHSVColor(0.3f, 1.0f, 1.0f); // orange color
 								M_LOG2("\t\t\t * Found External point: x_pre_inter (%d), y_pre_inter (%d) *", x_pre_inter, y_pre_inter);
 								int x_temp = x_pre_inter;
 								int y_temp = y_pre_inter;
@@ -1974,7 +1974,7 @@ std::map<std::string, QVariant> TestBezierPlugin::applyFilter(
 						}
 						else if (track_mesh[Cal_index_k(x_pre_inter, y_pre_inter, expanded_y, k_max)] == in_bound)
 						{
-							xy[Cal_index_k(x_pre_inter, y_pre_inter, expanded_y, k_max)]->C().SetHSVColor(300, 100, 100); // violet color
+							xy[Cal_index_k(x_pre_inter, y_pre_inter, expanded_y, k_max)]->C().SetHSVColor(3.0f, 1.0f, 1.0f); // violet color
 							M_LOG2("\t\t\t * Found Interior point: x_pre_inter (%d), y_pre_inter (%d) *", x_pre_inter, y_pre_inter);
 							int x_temp = x_pre_inter;
 							int y_temp = y_pre_inter;
@@ -2618,7 +2618,7 @@ std::map<std::string, QVariant> TestBezierPlugin::applyFilter(
 								new_point.P().Z() = (new_points_list_row.at(i4).P().Z() + new_points_list_col.at(j4).P().Z()) / 2.0;
 							}
 
-							new_point.C().SetHSVColor(120, 100, 100);
+							new_point.C().SetHSVColor(1.2f, 1.0f, 1.0f);
 							all_new_points_list.push_back(new_point);
 							all_new_points_list_dup.push_back(new_point);
 						}
@@ -2714,7 +2714,7 @@ std::map<std::string, QVariant> TestBezierPlugin::applyFilter(
 
 						///////////////////////////
 						//Debug new point
-						new_refine_point.C().SetHSVColor(60, 100, 100);
+                        new_refine_point.C().SetHSVColor(0.6f, 1.0f, 1.0f);
 						//M_LOG4("Refine new point:");
 						//M_debug_point(*xy_dup[Cal_index_k(curr_insert_p_x, curr_insert_p_y, expanded_y, k_max)]);
 						//M_debug_point(new_refine_point);
@@ -2896,6 +2896,7 @@ std::map<std::string, QVariant> TestBezierPlugin::applyFilter(
 	//end of debug
 
 	delete[] xy;
+	md.mm()->updateDataMask(MeshModel::MM_VERTCOLOR);
 	return outputValues;
 }
 
