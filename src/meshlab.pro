@@ -89,6 +89,7 @@ SUBDIRS += \ #sub projects names
 	# Custom filter
 	filter_testBezier \
 	filter_test_anything \
+	filter_bezier2 \
 # Rendering and Decoration Plugins
 	decorate_background \
 	decorate_raster_proj \
@@ -185,6 +186,7 @@ filter_voronoi.subdir = meshlabplugins/filter_voronoi
 # Custom filter
 filter_testBezier.subdir = meshlabplugins/filter_testBezier
 filter_test_anything.subdir = meshlabplugins/filter_test_anything
+filter_bezier2.subdir = meshlabplugins/filter_bezier2
 # Rendering and Decoration Plugins
 decorate_background.subdir = meshlabplugins/decorate_background
 decorate_raster_proj.subdir = meshlabplugins/decorate_raster_proj
@@ -265,6 +267,7 @@ filter_voronoi.depends = common
 # Custom filter
 filter_testBezier.depends = common
 filter_test_anything.depends = common
+filter_bezier2.depends = common
 # Rendering and Decoration Plugins
 decorate_background.depends = common
 decorate_raster_proj.depends = common
