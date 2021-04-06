@@ -149,6 +149,298 @@ void FilterBezier2Plugin::initParameterList(const QAction *action, MeshModel &m,
 //========================================================
 // Calculate Bezier
 
+// return index of one dimention array
+int Cal_index_k(int x, int y, int max_y, int k)
+{
+    return (x + k) * max_y + (y + k);
+}
+
+// functions for find external boundary
+
+//find distance between 2 point
+float distance(float x1, float y1, float x2, float y2)
+{
+    return sqrt(pow((x1 - x2), 2) + pow((y1 - y2), 2));
+}
+
+// compare 2 float
+bool Compare2Float(float A, float B)
+{
+    float diff = A - B;
+    return (diff < EPSILON) && (-diff < EPSILON);
+}
+
+//check whether if p_curr(x_center, y_center) is the center point of p1(x1, y1) and p2(x2, y2) or not
+bool isPCurrCenter(float x_center, float y_center, float x1, float y1, float x2, float y2)
+{
+    //return p_curr is the center point(1-2) or not
+    float d1 = distance(x_center, y_center, x1, y1);
+    //M_LOG("distance(x_center(%f), y_center(%f), x1(%f), y1(%f)): %f", x_center, y_center, x1, y1, d1);
+    float d2 = distance(x_center, y_center, x2, y2);
+    //M_LOG("distance(x_center(%f), y_center(%f), x2(%f), y2(%f)): %f", x_center, y_center, x2, y2, d2);
+    float d3 = distance(x1, y1, x2, y2);
+    //M_LOG("distance(x1(%f), y1(%f), x2(%f), y2(%f)): %f", x1, y1, x2, y2, d3);
+
+    if (Compare2Float(d3, d1 + d2))
+    {
+        M_LOG("This point (%f,%f) is center (Point (%f,%f) & (%f,%f))", x_center, y_center, x1, y1, x2, y2);
+        return true;
+    }
+    else
+    {
+        M_LOG("This point (%f,%f) is NOT center (Point (%f,%f) & (%f,%f))", x_center, y_center, x1, y1, x2, y2);
+        return false;
+    }
+}
+
+enum N_LINE
+{
+    LINE_0 = 0,
+    LINE_12 = 12,
+    LINE_23 = 23,
+    LINE_34 = 34,
+    LINE_41 = 41
+};
+
+/**
+ * find match point of line ((x1, y1), (x2, y2)) and line ((x3, y3), (x4, y4))
+ */
+tuple<float, float, bool> findMatch(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4) {
+    float intersectionX, intersectionY;
+
+    M_LOG("Find the intersecting point of 2 lines");
+    // y = m * x + c
+    // with 2 point (x1, y1), (x2, y2) we have a system of linear equations
+    // y1 = m * x1 + c; y2 = m * x2 + c;
+    // => y2 - y1 = m * (x2 - x1) + c
+    // => m = (x2 - x1) / (y2 - y1); c = y1 = m * x1
+    // Note: check cases y = c or x = a
+
+    float dx21 = x2 - x1;
+    float dy21 = y2 - y1;
+    float m21 = dy21 / dx21;
+    float c21 = y1 - m21 * x1;
+
+    float dx43 = x4 - x3;
+    float dy43 = y4 - y3;
+    float m43 = dy43 / dx43;
+    float c43 = y3 - m43 * x3;
+
+    M_LOG("Program to find the intersecting point of two lines:");
+    M_LOG("the first line is (p_curr,p_prev) ");
+    N_LOG_E("x1,y1(%d,%d) \t x2,y2(%d,%d) \t", x1, y1, x2, y2);
+    M_LOG("dx21 %f \t dy21 %f \t m21 %f \t c21 %f", dx21, dy21, m21, c21);
+    N_LOG_E("x3,y3(%d,%d) \t x4,y4(%d,%d) ", x3, y3, x4, y4);
+    M_LOG("dx43 %f \t dy43 %f \t m43 %f \t c43 %f ", x3, y3, x4, y4);
+
+    if (dx21 == 0 && dx43 == 0)
+    {
+        M_LOG("Parallel with y axis ");
+        M_LOG("-------------");
+        return {0, 0, false};
+    }
+    else if (dy21 == 0 && dy43 == 0)
+    {
+        M_LOG("Parallel with x axis ");
+        M_LOG("-------------");
+        return {0, 0, false};
+    }
+    else if (dx21 == 0)
+    {
+        // line 21: x = x1
+        // line 43: y = m2 * x + c43
+        intersectionX = x1;
+        intersectionY = m43 * intersectionX + c43;
+        M_LOG("Intersecting Point: = %f, %f ", intersectionX, intersectionY);
+        M_LOG("-------------");
+        return {intersectionX, intersectionY, true};
+    }
+    else if (dx43 == 0)
+    {
+        // line 21: y = m1 * x + c21
+        // line 43: x = x3
+        intersectionX = x3;
+        intersectionY = m21 * intersectionX + c21;
+        M_LOG("Intersecting Point: = %f, %f ", intersectionX, intersectionY);
+        M_LOG("-------------");
+        return {intersectionX, intersectionY, true};
+    }
+    else if ((m21 - m43) == 0)
+    {
+        M_LOG("2 Lines are paralled, no intersection");
+        return {0, 0, false};
+    }
+    else
+    {
+        // line 1: y = m21 * x + c21
+        // line 2: y = m43 * x + c43
+        intersectionX = (c21 - c43) / (m21 - m43);
+        intersectionY = m21 * intersectionX + c21;
+        M_LOG("Intersecting Point: = %f, %f ", intersectionX, intersectionY);
+        M_LOG("-------------");
+        return {intersectionX, intersectionY, true};
+    }
+}
+
+/** find the intersection between RNk(p) and half_line(p_curr, p_prev)
+ *
+ * @param[in] x_prev
+ * @param[in] y_prev
+ * @param[in] x_curr
+ * @param[in] y_curr
+ * @param[in] max_y
+ * @param[in] k_ins
+ *
+ * @result tuple<x_result, y_result, line>
+ *
+ * 2---------3
+ * | \  |  / |
+ * | -  C  - |
+ * | /  |  \ |
+ * 1---------4
+ * we have 4 lines: 12, 23, 34, 41
+ * from point C(x_curr, y_curr) we calculate point 1, 2, 3, 4 with unit distance k_ins
+ * from point P(x_prev, y_prev) we have half line CP
+ * find the intersection between half line CP and lines 12, 23, 34, 41
+ */
+tuple<float, float, N_LINE> Comp_p_Prev_p_Curr(
+    int x_prev, int y_prev,
+    int x_curr, int y_curr,
+    int max_y, int k_ins)
+{
+    // return x_result,y_result which is the intersection between RNk(p) and half_line(p_curr, p_prev)
+    int x1 = x_curr - k_ins;
+    int y1 = y_curr - k_ins;
+
+    int x2 = x_curr - k_ins;
+    int y2 = y_curr + k_ins;
+
+    int x3 = x_curr + k_ins;
+    int y3 = y_curr + k_ins;
+
+    int x4 = x_curr + k_ins;
+    int y4 = y_curr - k_ins;
+
+    float x_result, y_result;
+    bool status_intersection;
+
+    //find 4 intersection between (p_curr, p_prev) and sides of square RN(k)
+
+    //***check on the x_line below (Point 1 & 2)***
+    M_LOG("Start find intersection of (p_curr, p_prev) and 1-2");
+    tie(x_result, y_result, status_intersection) = findMatch(x_curr, y_curr, x_prev, y_prev, x1, y1, x2, y2);
+    if (status_intersection)
+    {
+        bool check = isPCurrCenter(x_curr, y_curr, x_prev, y_prev, x_result, y_result);
+        if (check)
+        {
+            M_LOG("p_curr(%d,%d) is center p_prev(%d,%d) and p_result(%f,%f)", x_curr, y_curr, x_prev, y_prev, x_result, y_result);
+            M_LOG("->REJECT point(%f,%f)  ", x_result, y_result);
+        }
+        else if ((int)x_result == x1 && (y2 >= y_result) && (y_result >= y1))
+        {
+            M_LOG("This point(%f,%f) belong (Point 1(%d,%d) & 2(%d,%d))", x_result, y_result, x1, y1, x2, y2);
+            return {x_result, y_result, LINE_12};
+        }
+    }
+
+    //***check on the x_line below (Point 2 & 3)***
+    M_LOG("Start find intersection of (p_curr, p_prev) and 2-3");
+    tie(x_result, y_result, status_intersection) = findMatch(x_curr, y_curr, x_prev, y_prev, x2, y2, x3, y3);
+    if (status_intersection)
+    {
+        bool check = isPCurrCenter(x_curr, y_curr, x_prev, y_prev, x_result, y_result);
+        if (check)
+        {
+            M_LOG("p_curr(%d,%d) is center p_prev(%d,%d) and p_result(%f,%f)", x_curr, y_curr, x_prev, y_prev, x_result, y_result);
+            M_LOG("->REJECT point(%f,%f)  ", x_result, y_result);
+        }
+        else if ((int)y_result == y2 && (x3 >= x_result) && (x_result >= x2))
+        {
+            M_LOG("This point(%f,%f) belong (Point 2(%d,%d) & 3(%d,%d))", x_result, y_result, x2, y2, x3, y3);
+            return {x_result, y_result, LINE_23};
+        }
+    }
+
+    //***check on the x_line below (Point 3 & 4)***
+    M_LOG("Start find intersection of (p_curr, p_prev) and 3-4");
+    tie(x_result, y_result, status_intersection) = findMatch(x_curr, y_curr, x_prev, y_prev, x3, y3, x4, y4);
+    if (status_intersection)
+    {
+        bool check = isPCurrCenter(x_curr, y_curr, x_prev, y_prev, x_result, y_result);
+        if (check)
+        {
+            M_LOG("p_curr(%d,%d) is center p_prev(%d,%d) and p_result(%f,%f)", x_curr, y_curr, x_prev, y_prev, x_result, y_result);
+            M_LOG("->REJECT point(%f,%f)  ", x_result, y_result);
+        }
+        else if ((int)x_result == x3 && (y3 >= y_result) && (y_result >= y4))
+        {
+            M_LOG("This point(%f,%f) belong (Point 3(%d,%d) & 4(%d,%d))", x_result, y_result, x3, y3, x4, y4);
+            return {x_result, y_result, LINE_34};
+        }
+    }
+
+    //***check on the x_line below (Point 4 & 1)***
+    M_LOG("Start find intersection of (p_curr, p_prev) and 4-1");
+    tie(x_result, y_result, status_intersection) = findMatch(x_curr, y_curr, x_prev, y_prev, x4, y4, x1, y1);
+    if (status_intersection)
+    {
+        bool check = isPCurrCenter(x_curr, y_curr, x_prev, y_prev, x_result, y_result);
+        if (check)
+        {
+            M_LOG("p_curr(%d,%d) is center p_prev(%d,%d) and p_result(%f,%f)", x_curr, y_curr, x_prev, y_prev, x_result, y_result);
+            M_LOG("->REJECT point(%f,%f)  ", x_result, y_result);
+        }
+        else if ((int)y_result == y4 && (x4 >= x_result) && (x_result >= x1))
+        {
+            M_LOG("This point(%f,%f) belong (Point 4(%d,%d) & 1(%d,%d))", x_result, y_result, x4, y4, x1, y1);
+            return {x_result, y_result, LINE_41};
+        }
+    }
+
+    assert(0);
+}
+
+/** round Coordinate of a point by move it to the given line
+ *
+ * @param[in] x x-coordinate value
+ * @param[in] y y-coordinate value
+ * @param[in] line
+ *
+ * @result tuple<x_result, y_result>
+ *
+ * 2---------3
+ * | \  |  / |
+ * | -  C  - |
+ * | /  |  \ |
+ * 1---------4
+ * line 12, 23: round the coordinate value by converting float to int
+ * line 34: adjust y-coordinate value
+ * line 41: adjust x-coordinate value
+ */
+tuple<int, int> roundByLine(float x, float y, N_LINE line) {
+    if (line == LINE_12)
+    {
+        return {(int)x, (int)y};
+    }
+    else if (line == LINE_23)
+    {
+        return {(int)x, (int)y};
+    }
+    else if (line == LINE_34)
+    {
+        int newY = ((y - (int)y) > EPSILON) ? ((int)y + 1) : (int)y;
+        return {(int)x, newY};
+    }
+    else if (line == LINE_41)
+    {
+        int newX = ((x - (int)x) > EPSILON) ? ((int)x + 1) : (int)x;
+        return {newX, (int)y};
+    }
+
+    assert(0);
+}
+
 struct Point
 {
     float x;
@@ -414,112 +706,11 @@ void find_first_of_8_neigh(CVertexO **vertices, int x_curr, int y_curr, int &x, 
     }
 }
 
-// return index of one dimention array
-int Cal_index_k(int x, int y, int max_y, int k)
-{
-    return (x + k) * max_y + (y + k);
-}
-
-/**
- * find match point of line ((x1, y1), (x2, y2)) and line ((x3, y3), (x4, y4))
- */
-tuple<float, float, bool> findMatch(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4) {
-    float intersectionX, intersectionY;
-
-    M_LOG("Find the intersecting point of 2 lines");
-    // y = m * x + c
-    // with 2 point (x1, y1), (x2, y2) we have a system of linear equations
-    // y1 = m * x1 + c; y2 = m * x2 + c;
-    // => y2 - y1 = m * (x2 - x1) + c
-    // => m = (x2 - x1) / (y2 - y1); c = y1 = m * x1
-    // Note: check cases y = c or x = a
-
-    float dx21 = x2 - x1;
-    float dy21 = y2 - y1;
-    float m21 = dy21 / dx21;
-    float c21 = y1 - m21 * x1;
-
-    float dx43 = x4 - x3;
-    float dy43 = y4 - y3;
-    float m43 = dy43 / dx43;
-    float c43 = y3 - m43 * x3;
-
-    M_LOG("Program to find the intersecting point of two lines:");
-    M_LOG("the first line is (p_curr,p_prev) ");
-    N_LOG_E("x1,y1(%d,%d) \t x2,y2(%d,%d) \t", x1, y1, x2, y2);
-    M_LOG("dx21 %f \t dy21 %f \t m21 %f \t c21 %f", dx21, dy21, m21, c21);
-    N_LOG_E("x3,y3(%d,%d) \t x4,y4(%d,%d) ", x3, y3, x4, y4);
-    M_LOG("dx43 %f \t dy43 %f \t m43 %f \t c43 %f ", x3, y3, x4, y4);
-
-    if (dx21 == 0 && dx43 == 0)
-    {
-        M_LOG("Parallel with y axis ");
-        M_LOG("-------------");
-        return {0, 0, false};
-    }
-    else if (dy21 == 0 && dy43 == 0)
-    {
-        M_LOG("Parallel with x axis ");
-        M_LOG("-------------");
-        return {0, 0, false};
-    }
-    else if (dx21 == 0)
-    {
-        // line 21: x = x1
-        // line 43: y = m2 * x + c43
-        intersectionX = x1;
-        intersectionY = m43 * intersectionX + c43;
-        M_LOG("Intersecting Point: = %f, %f ", intersectionX, intersectionY);
-        M_LOG("-------------");
-        return {intersectionX, intersectionY, true};
-    }
-    else if (dx43 == 0)
-    {
-        // line 21: y = m1 * x + c21
-        // line 43: x = x3
-        intersectionX = x3;
-        intersectionY = m21 * intersectionX + c21;
-        M_LOG("Intersecting Point: = %f, %f ", intersectionX, intersectionY);
-        M_LOG("-------------");
-        return {intersectionX, intersectionY, true};
-    }
-    else if ((m21 - m43) == 0)
-    {
-        M_LOG("2 Lines are paralled, no intersection");
-        return {0, 0, false};
-    }
-    else
-    {
-        // line 1: y = m21 * x + c21
-        // line 2: y = m43 * x + c43
-        intersectionX = (c21 - c43) / (m21 - m43);
-        intersectionY = m21 * intersectionX + c21;
-        M_LOG("Intersecting Point: = %f, %f ", intersectionX, intersectionY);
-        M_LOG("-------------");
-        return {intersectionX, intersectionY, true};
-    }
-}
-
-//find distance between 2 point
-float distance(float x1, float y1, float x2, float y2)
-{
-    return sqrt(pow((x1 - x2), 2) + pow((y1 - y2), 2));
-}
-
 //find distance between 2 point in 3D
 double distance3D(CVertexO p1, CVertexO p2)
 {
 
     return sqrt(pow((p1.P().X() - p2.P().X()), 2) + pow((p1.P().Y() - p2.P().Y()), 2) + pow((p1.P().Z() - p2.P().Z()), 2));
-}
-
-// compare 2 float
-bool Compare2Float(float A, float B)
-{
-    float diff = A - B;
-    //M_LOG("diff: %f", diff);
-    //M_LOG("EPSILON: %f", EPSILON);
-    return (diff < EPSILON) && (-diff < EPSILON);
 }
 
 // compare 2 double
@@ -530,141 +721,6 @@ bool Compare2Double(double A, double B)
     //M_LOG("diff: %f", diff);
     //M_LOG("EPSILON: %f", EPSILON);
     return (diff < EPSILON) && (-diff < EPSILON);
-}
-
-//check whether if p_curr is the center point or not
-bool p_curr_is_center(float x_center, float y_center, float x1, float y1, float x2, float y2)
-{
-    //return p_curr is the center point(1-2) or not
-    float d1 = distance(x_center, y_center, x1, y1);
-    //M_LOG("distance(x_center(%f), y_center(%f), x1(%f), y1(%f)): %f", x_center, y_center, x1, y1, d1);
-    float d2 = distance(x_center, y_center, x2, y2);
-    //M_LOG("distance(x_center(%f), y_center(%f), x2(%f), y2(%f)): %f", x_center, y_center, x2, y2, d2);
-    float d3 = distance(x1, y1, x2, y2);
-    //M_LOG("distance(x1(%f), y1(%f), x2(%f), y2(%f)): %f", x1, y1, x2, y2, d3);
-
-    if (Compare2Float(d3, d1 + d2))
-    {
-        M_LOG("This point (%f,%f) is center (Point (%f,%f) & (%f,%f))", x_center, y_center, x1, y1, x2, y2);
-        return true;
-    }
-    else
-    {
-        M_LOG("This point (%f,%f) is NOT center (Point (%f,%f) & (%f,%f))", x_center, y_center, x1, y1, x2, y2);
-        return false;
-    }
-}
-
-// find the intersection between RNk(p) and half_line(p_curr, p_prev)
-//
-// 2---------3
-// | \  |  / |
-// | -  C  - |
-// | /  |  \ |
-// 1---------4
-// we have 4 lines: 12, 23, 34, 41
-// from point C(x_curr, y_curr) we calculate point 1, 2, 3, 4 with unit distance k_ins
-// from point P(x_prev, y_prev) we have half line CP
-// find the intersection between half line CP and lines 12, 23, 34, 41
-void Comp_p_Prev_p_Curr(
-    int x_prev, int y_prev,
-    int x_curr, int y_curr,
-    int max_y, int k_ins,
-    float &x_result, float &y_result, int &line)
-{
-    // return x_result,y_result which is the intersection between RNk(p) and half_line(p_curr, p_prev)
-    int x1 = x_curr - k_ins;
-    int y1 = y_curr - k_ins;
-
-    int x2 = x_curr - k_ins;
-    int y2 = y_curr + k_ins;
-
-    int x3 = x_curr + k_ins;
-    int y3 = y_curr + k_ins;
-
-    int x4 = x_curr + k_ins;
-    int y4 = y_curr - k_ins;
-
-    //find 4 intersection between (p_curr, p_prev) and sides of square RN(k)
-    //***check on the x_line below (Point 1 & 2)***
-    bool status_intersection;
-    M_LOG("Start find intersection of (p_curr, p_prev) and 1-2");
-    // find_match(x_curr, y_curr, x_prev, y_prev, x1, y1, x2, y2, x_result, y_result, status_intersection);
-    tie(x_result, y_result, status_intersection) = findMatch(x_curr, y_curr, x_prev, y_prev, x1, y1, x2, y2);
-    if (status_intersection)
-    {
-        bool check = p_curr_is_center(x_curr, y_curr, x_prev, y_prev, x_result, y_result);
-        if (check)
-        {
-            M_LOG("p_curr(%d,%d) is center p_prev(%d,%d) and p_result(%f,%f)", x_curr, y_curr, x_prev, y_prev, x_result, y_result);
-            M_LOG("->REJECT point(%f,%f)  ", x_result, y_result);
-        }
-        if ((int)x_result == x1 && (y2 >= y_result) && (y_result >= y1) && !check)
-        {
-            line = 12;
-            M_LOG("This point(%f,%f) belong (Point 1(%d,%d) & 2(%d,%d))", x_result, y_result, x1, y1, x2, y2);
-            return;
-        }
-    }
-
-    //***check on the x_line below (Point 2 & 3)***
-    M_LOG("Start find intersection of (p_curr, p_prev) and 2-3");
-    // find_match(x_curr, y_curr, x_prev, y_prev, x2, y2, x3, y3, x_result, y_result, status_intersection);
-    tie(x_result, y_result, status_intersection) = findMatch(x_curr, y_curr, x_prev, y_prev, x2, y2, x3, y3);
-    if (status_intersection)
-    {
-        bool check = p_curr_is_center(x_curr, y_curr, x_prev, y_prev, x_result, y_result);
-        if (check)
-        {
-            M_LOG("p_curr(%d,%d) is center p_prev(%d,%d) and p_result(%f,%f)", x_curr, y_curr, x_prev, y_prev, x_result, y_result);
-            M_LOG("->REJECT point(%f,%f)  ", x_result, y_result);
-        }
-        if ((int)y_result == y2 && (x3 >= x_result) && (x_result >= x2) && !check)
-        {
-            line = 23;
-            M_LOG("This point(%f,%f) belong (Point 2(%d,%d) & 3(%d,%d))", x_result, y_result, x2, y2, x3, y3);
-            return;
-        }
-    }
-
-    //***check on the x_line below (Point 3 & 4)***
-    M_LOG("Start find intersection of (p_curr, p_prev) and 3-4");
-    // find_match(x_curr, y_curr, x_prev, y_prev, x3, y3, x4, y4, x_result, y_result, status_intersection);
-    tie(x_result, y_result, status_intersection) = findMatch(x_curr, y_curr, x_prev, y_prev, x3, y3, x4, y4);
-    if (status_intersection)
-    {
-        bool check = p_curr_is_center(x_curr, y_curr, x_prev, y_prev, x_result, y_result);
-        if (check)
-        {
-            M_LOG("p_curr(%d,%d) is center p_prev(%d,%d) and p_result(%f,%f)", x_curr, y_curr, x_prev, y_prev, x_result, y_result);
-            M_LOG("->REJECT point(%f,%f)  ", x_result, y_result);
-        }
-        if ((int)x_result == x3 && (y3 >= y_result) && (y_result >= y4) && !check)
-        {
-            line = 34;
-            M_LOG("This point(%f,%f) belong (Point 3(%d,%d) & 4(%d,%d))", x_result, y_result, x3, y3, x4, y4);
-            return;
-        }
-    }
-
-    //***check on the x_line below (Point 4 & 1)***
-    M_LOG("Start find intersection of (p_curr, p_prev) and 4-1");
-    // find_match(x_curr, y_curr, x_prev, y_prev, x4, y4, x1, y1, x_result, y_result, status_intersection);
-    tie(x_result, y_result, status_intersection) = findMatch(x_curr, y_curr, x_prev, y_prev, x4, y4, x1, y1);
-    if (status_intersection)
-    {
-        bool check = p_curr_is_center(x_curr, y_curr, x_prev, y_prev, x_result, y_result);
-        if (check)
-        {
-            M_LOG("p_curr(%d,%d) is center p_prev(%d,%d) and p_result(%f,%f)", x_curr, y_curr, x_prev, y_prev, x_result, y_result);
-            M_LOG("->REJECT point(%f,%f)  ", x_result, y_result);
-        }
-        if ((int)y_result == y4 && (x4 >= x_result) && (x_result >= x1) && !check)
-        {
-            line = 41;
-            M_LOG("This point(%f,%f) belong (Point 4(%d,%d) & 1(%d,%d))", x_result, y_result, x4, y4, x1, y1);
-        }
-    }
 }
 
 // Move next point on the RNk(p)
@@ -691,7 +747,7 @@ bool move_next_RNk(int &x_RNk, int &y_RNk, int x_curr, int y_curr, int k)
 
     //check on side 1-2
     M_LOG("Check x_RNk,y_RNk (%d, %d) on line 1-2", x_RNk, y_RNk);
-    if (p_curr_is_center(x_RNk, y_RNk, x1, y1, x2, y2) && (y_RNk < y2))
+    if (isPCurrCenter(x_RNk, y_RNk, x1, y1, x2, y2) && (y_RNk < y2))
     {
         M_LOG("End check (%d, %d) and move to next point (%d, %d)", x_RNk, y_RNk, x_RNk, y_RNk + 1);
         y_RNk++;
@@ -699,7 +755,7 @@ bool move_next_RNk(int &x_RNk, int &y_RNk, int x_curr, int y_curr, int k)
     }
     //check on side 2-3
     M_LOG("Check x_RNk,y_RNk (%d, %d) on line 2-3", x_RNk, y_RNk);
-    if (p_curr_is_center(x_RNk, y_RNk, x2, y2, x3, y3) && (x_RNk < x3))
+    if (isPCurrCenter(x_RNk, y_RNk, x2, y2, x3, y3) && (x_RNk < x3))
     {
         M_LOG("End check (%d, %d) and move to next point (%d, %d)", x_RNk, y_RNk, x_RNk + 1, y_RNk);
         x_RNk++;
@@ -707,7 +763,7 @@ bool move_next_RNk(int &x_RNk, int &y_RNk, int x_curr, int y_curr, int k)
     }
     //check on side 3-4
     M_LOG("Check x_RNk,y_RNk (%d, %d) on line 3-4", x_RNk, y_RNk);
-    if (p_curr_is_center(x_RNk, y_RNk, x3, y3, x4, y4) && (y_RNk > y4))
+    if (isPCurrCenter(x_RNk, y_RNk, x3, y3, x4, y4) && (y_RNk > y4))
     {
         M_LOG("End check (%d, %d) and move to next point (%d, %d)", x_RNk, y_RNk, x_RNk, y_RNk - 1);
         y_RNk--;
@@ -715,7 +771,7 @@ bool move_next_RNk(int &x_RNk, int &y_RNk, int x_curr, int y_curr, int k)
     }
     //check on side 4-1
     M_LOG("Check x_RNk,y_RNk (%d, %d) on line 4-1", x_RNk, y_RNk);
-    if (p_curr_is_center(x_RNk, y_RNk, x4, y4, x1, y1) && (x_RNk > x1))
+    if (isPCurrCenter(x_RNk, y_RNk, x4, y4, x1, y1) && (x_RNk > x1))
     {
         M_LOG("End check (%d, %d) and move to next point (%d, %d)", x_RNk, y_RNk, x_RNk - 1, y_RNk);
         x_RNk--;
@@ -742,57 +798,6 @@ int round_num(float a)
         return (int)(a + 0.5);
     else
         return (int)(a - 0.5);
-}
-
-tuple<int, int> roundByLine(float x, float y, int line) {
-    if (line == 12)
-    {
-        return {(int)x, (int)y};
-    }
-    else if (line == 23)
-    {
-        return {(int)x, (int)y};
-    }
-    else if (line == 34)
-    {
-        return {(int)x, ((y - (int)y) > EPSILON) ? ((int)y + 1) : (int)y};
-    }
-    else if (line == 41)
-    {
-        return {((x - (int)x) > EPSILON) ? ((int)x + 1) : (int)x, (int)y};
-    }
-
-    assert(0);
-}
-
-void round_by_line(float x, float y, int line, int &x_new, int &y_new)
-{
-    if (line == 12)
-    {
-        x_new = (int)x;
-        y_new = (int)y;
-    }
-    else if (line == 23)
-    {
-        x_new = (int)x;
-        y_new = (int)y;
-    }
-    else if (line == 34)
-    {
-        x_new = (int)x;
-        if ((y - (int)y) > EPSILON)
-            y_new = (int)y + 1;
-        else
-            y_new = (int)y;
-    }
-    else if (line == 41)
-    {
-        if ((x - (int)x) > EPSILON)
-            x_new = (int)x + 1;
-        else
-            x_new = (int)x;
-        y_new = (int)y;
-    }
 }
 
 // check whether a point has checked or not
@@ -1616,16 +1621,13 @@ std::map<std::string, QVariant> FilterBezier2Plugin::applyFilter(
         bool find = false;
         int k = 1;
 
-
         // Setup first, current point
         int x_First = startX, y_First = startY;
         int x_Curr = startX, y_Curr = startY;
 
-
         // Setup the previous point
         int x_Prev = x_Curr;
         int y_Prev = y_Curr - 1;
-
 
         float x_Prev_k, y_Prev_k;
         int x_pre_k, y_pre_k;
@@ -1641,16 +1643,15 @@ std::map<std::string, QVariant> FilterBezier2Plugin::applyFilter(
 
         bool pass_1st_prev = true;
 
-
         while (!stop)
         {
             // Setup the p_Prev_k (which created by (p_curr,p_prev) and RNk(p)) and create new after loop
             M_LOG("\n\n\t\t\t *** NEW PROCESS ***");
             M_LOG("*** p_prev (%d,%d) ***", x_Prev, y_Prev);
             M_LOG("*** p_curr (%d,%d) ***", x_Curr, y_Curr);
-            int line_k;
+            N_LINE line_k;
             M_LOG("\t ** Begin to find to intersection (p_Prev_k) between line (p_curr,p_prev) and square (RNk) **");
-            Comp_p_Prev_p_Curr(x_Prev, y_Prev, x_Curr, y_Curr, expanded_y,k, x_Prev_k, y_Prev_k, line_k);
+            tie(x_Prev_k, y_Prev_k, line_k) = Comp_p_Prev_p_Curr(x_Prev, y_Prev, x_Curr, y_Curr, expanded_y, k);
             M_LOG("\t ***** x_Prev_k, y_Prev_k (%f,%f) *****", x_Prev_k, y_Prev_k);
             find = false;
             tie(x_pre_k, y_pre_k) = roundByLine(x_Prev_k, y_Prev_k, line_k);
@@ -1678,8 +1679,8 @@ std::map<std::string, QVariant> FilterBezier2Plugin::applyFilter(
                     M_LOG("\n\t Find intersection between RNi(p)-[i=%d] and discrete segment p_prev_k, p_curr(%d,%d),(%d,%d).",
                           i, x_pre_k, y_pre_k, x_Curr, y_Curr);
 
-                    int line_i;
-                    Comp_p_Prev_p_Curr(x_pre_k, y_pre_k, x_Curr, y_Curr, expanded_y, i, x_qi, y_qi, line_i);
+                    N_LINE line_i;
+                    tie(x_qi, y_qi, line_i) = Comp_p_Prev_p_Curr(x_pre_k, y_pre_k, x_Curr, y_Curr, expanded_y, i);
                     const auto [x_i, y_i] = roundByLine(x_qi, y_qi, line_i);
 
                     M_LOG("\t\t\t ** (i=%d)The intersection between RNi(p) and discrete segment(p, q) is: (%f,%f) **",
@@ -1692,7 +1693,7 @@ std::map<std::string, QVariant> FilterBezier2Plugin::applyFilter(
                     // check if out of range => skip
                     if ((minX <= x_i) && (x_i <= maxX) && (minY <= y_i) && (y_i <= maxY))
                     {
-                        int index_k = Cal_index_k(x_i, y_i, expanded_y, k_max);
+                        const int index_k = Cal_index_k(x_i, y_i, expanded_y, k_max);
                         //skip some iterator when meet tracked points
                         if ((k > 1) && pass_1st_prev)
                         {
@@ -1751,10 +1752,10 @@ std::map<std::string, QVariant> FilterBezier2Plugin::applyFilter(
                                 tracked_index = total_tracked;
                                 M_LOG("\t\t\t a3");
 
-                                track_mesh[Cal_index_k(x_i, y_i, expanded_y, k_max)] = ex_bound;
+                                track_mesh[index_k] = ex_bound;
                                 M_LOG("\t\t\t a4");
 
-                                xy[Cal_index_k(x_i, y_i, expanded_y, k_max)]->C().SetHSVColor(0, 1.0f, 1.0f); // red color
+                                xy[index_k]->C().SetHSVColor(0, 1.0f, 1.0f); // red color
 
                                 M_LOG("\t\t\t a5");
 
