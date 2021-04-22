@@ -18,7 +18,8 @@ TestAnythingPlugin::TestAnythingPlugin()
 {
 	typeList = {
 		TEST_ANYTHING,
-		TEST_FILL_COLOR
+		TEST_FILL_COLOR,
+		TEST_FILL_FACE_COLOR
 	};
 
 	for(ActionIDType tt : types()) {
@@ -40,6 +41,8 @@ QString TestAnythingPlugin::filterName(ActionIDType filter) const
 		return QString("Test Anything");
 	case TEST_FILL_COLOR:
 		return QString("Test Fill Color");
+	case TEST_FILL_FACE_COLOR:
+		return QString("Test Fill Face Color");
 	}
 	return QString("Unknown filter");
 }
@@ -52,6 +55,8 @@ QString TestAnythingPlugin::filterInfo(ActionIDType filterId) const
 		return tr("Test anything");
 	case TEST_FILL_COLOR:
 		return tr("Test fill color in code not from Qt Color picker parameter");
+	case TEST_FILL_FACE_COLOR:
+		return tr("Test fill face color");
 	}
 	return QString("Unknown Filter");
 }
@@ -63,6 +68,8 @@ TestAnythingPlugin::FilterClass TestAnythingPlugin::getClass(const QAction *acti
 	case TEST_ANYTHING:
 		return FilterClass(FilterPlugin::PointSet + FilterPlugin::VertexColoring);
 	case TEST_FILL_COLOR:
+		return FilterClass(FilterPlugin::NTest);
+	case TEST_FILL_FACE_COLOR:
 		return FilterClass(FilterPlugin::NTest);
 	default:
 		assert(0);
@@ -81,6 +88,10 @@ void TestAnythingPlugin::initParameterList(const QAction *action, MeshModel &m, 
 				break;
         }
         case TEST_FILL_COLOR: {
+			break;
+		}
+		case TEST_FILL_FACE_COLOR:
+		{
 			break;
 		}
 	default:
@@ -131,6 +142,19 @@ std::map<std::string, QVariant> TestAnythingPlugin::applyFilter(
 			m->updateDataMask(MeshModel::MM_VERTCOLOR);
 			break;
 		}
+		case TEST_FILL_FACE_COLOR:
+		{
+			m->updateDataMask(MeshModel::MM_FACECOLOR);
+
+			// every parser variables is related to face attributes.
+			for(CMeshO::FaceIterator fi = cm.face.begin(); fi != cm.face.end(); ++fi)
+			{
+				// set new color for this iteration
+				(*fi).C() = Color4b(255, 0, 255, 255);
+			}
+
+			break;
+		}
 	}
 
 	return outputValues;
@@ -144,6 +168,8 @@ QString TestAnythingPlugin::filterScriptFunctionName(ActionIDType filterID)
 		return QString("TestAnything");
 	case TEST_FILL_COLOR:
 		return QString("TestFillColor");
+	case TEST_FILL_FACE_COLOR:
+		return QString("TestFillFaceColor");
 	default:
 		assert(0);
 	}
@@ -158,6 +184,8 @@ int TestAnythingPlugin::getRequirements(const QAction *action)
 		return MeshModel::MM_VERTCOORD;
     case TEST_FILL_COLOR:
         return MeshModel::MM_NONE;
+	case TEST_FILL_FACE_COLOR:
+		return MeshModel::MM_NONE;
 	default:
 		return 0;
 	}
@@ -170,6 +198,8 @@ int TestAnythingPlugin::postCondition(const QAction *action) const
 	case TEST_ANYTHING:
 		return MeshModel::MM_VERTCOLOR;
 	case TEST_FILL_COLOR:
+		return MeshModel::MM_NONE;
+	case TEST_FILL_FACE_COLOR:
 		return MeshModel::MM_NONE;
 	default:
 		return MeshModel::MM_UNKNOWN;
@@ -184,6 +214,8 @@ int TestAnythingPlugin::getPreConditions(QAction *action) const
 		return MeshModel::MM_NONE;
 	case TEST_FILL_COLOR:
 		return MeshModel::MM_NONE;
+	case TEST_FILL_FACE_COLOR:
+		return MeshModel::MM_NONE;
 	default:
 		return 0;
 	}
@@ -196,6 +228,8 @@ FilterPlugin::FilterArity TestAnythingPlugin::filterArity(const QAction *filter)
 		case TEST_ANYTHING:
 			return FilterPlugin::VARIABLE;
 		case TEST_FILL_COLOR:
+			return FilterPlugin::SINGLE_MESH;
+		case TEST_FILL_FACE_COLOR:
 			return FilterPlugin::SINGLE_MESH;
 	}
 

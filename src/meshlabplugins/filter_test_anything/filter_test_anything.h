@@ -18,10 +18,12 @@ public:
                  - FP -> Filter Plugin
                  - name of the plugin separated by _
        */
-  enum {
-    TEST_ANYTHING,
-		TEST_FILL_COLOR
-  } ;
+	enum {
+		TEST_ANYTHING,
+		TEST_FILL_COLOR,
+		TEST_FILL_FACE_COLOR
+	};
+
 	TestAnythingPlugin();
 
 	QString pluginName() const;
