@@ -133,10 +133,10 @@ void FilterBezier2Plugin::initParameterList(const QAction *action, MeshModel &m,
     switch (ID(action))
     {
     case TEST_BEZIER2:
-        parlst.addParam(RichBool("step1", true, "External Boundary Extraction", "Case 1"));
-        parlst.addParam(RichBool("case2", true, "Internal Boundary Extraction", "Case 2"));
-        parlst.addParam(RichBool("case3", true, "Filling the Holes", "Case 3"));
-        parlst.addParam(RichBool("case4", true, "Refine points of the Holes", "Case 4"));
+        parlst.addParam(RichBool("step1", true, "External Boundary Extraction", "Step 1"));
+        parlst.addParam(RichBool("step2", false, "Internal Boundary Extraction", "Step 2"));
+        // parlst.addParam(RichBool("case3", true, "Filling the Holes", "Case 3"));
+        // parlst.addParam(RichBool("case4", true, "Refine points of the Holes", "Case 4"));
         //parlst.addParam(new RichInt("x", 3, "X", "x variable"));
         //parlst.addParam(new RichInt("y", 4, "Y", "y variable"));
         //parlst.addParam(new RichInt("k", 2, "K", "k variable"));
@@ -1579,7 +1579,7 @@ std::map<std::string, QVariant> FilterBezier2Plugin::applyFilter(
     M_LOG("Max index at x:%d --- y:%d ", maxX, maxY);
 
     bool step1 = par.getBool("step1");
-    // bool case2 = par.getBool("case2");
+    bool step2 = par.getBool("step2");
     // bool case3 = par.getBool("case3");
     // bool case4 = par.getBool("case4");
 
@@ -1614,7 +1614,7 @@ std::map<std::string, QVariant> FilterBezier2Plugin::applyFilter(
     int tracked_index = 0;
     int total_tracked = 0;
 
-    // extract external boundary
+    // EXTRACT EXTERNAL BOUNDARY
     if (step1)
     {
         bool stop = false;
@@ -1807,10 +1807,10 @@ std::map<std::string, QVariant> FilterBezier2Plugin::applyFilter(
                 }
                 else
                 {
-                    qDebug("\t\t\t *** ex_1st_track (%d,%d) ***", x_ex_1st_track, y_ex_1st_track);
-                    qDebug("\t\t\t *** pre_k_1st (%d,%d) ***", x_pre_k_1st, y_pre_k_1st);
-                    qDebug("\t\t\t *** pre_k (%d,%d) ***", x_pre_k, y_pre_k);
-                    qDebug("\t\t\t *** ex_1st_track (%d) ***", ex_1st_track);
+                    M_LOG("\t\t\t *** ex_1st_track (%d,%d) ***", x_ex_1st_track, y_ex_1st_track);
+                    M_LOG("\t\t\t *** pre_k_1st (%d,%d) ***", x_pre_k_1st, y_pre_k_1st);
+                    M_LOG("\t\t\t *** pre_k (%d,%d) ***", x_pre_k, y_pre_k);
+                    M_LOG("\t\t\t *** ex_1st_track (%d) ***", ex_1st_track);
                 }
 
                 // increasing k when not found any point
@@ -1847,6 +1847,170 @@ std::map<std::string, QVariant> FilterBezier2Plugin::applyFilter(
     }
     // end if (step1)
 
+    // EXTRACT INTERNAL BOUNDARY
+    if (step2)
+    {
+        vector<vector<CVertexO>> hole_list;
+        vector<CVertexO> points_list;
+        int total_inter_points = 0;
+        int min_x = 0, min_y = 0;
+
+        // find inter points
+        for (int i = 0; i < meshVertexNumber; i++)
+        {
+            const int x = (int)cm.vert[i].P().X();
+            const int y = (int)cm.vert[i].P().Y();
+
+            const int xyIndex = Cal_index_k(x, y, expanded_y, k_max);
+            if ((track_mesh[xyIndex] != ex_bound) &&
+                miss_1_of_4_neigh(xy, x, y, expanded_y, maxX, maxY, minX, minY, k_max))
+            {
+                track_mesh[xyIndex] = in_bound;
+                xy[xyIndex]->C().SetHSVColor(0.6f, 1.0f, 0.392f); // Yellow
+                CVertexO temp = *xy[xyIndex];
+                points_list.push_back(temp);
+                total_inter_points++;
+            }
+        }
+
+        for (unsigned int i = 0; i < points_list.size(); i++)
+        {
+            M_LOG2("ALL DATA: i(%d): x(%f) y(%f)", i, points_list[i].P().X(), points_list[i].P().Y());
+        }
+
+        // kk is number of holes
+        int kk = 0;
+
+        while (total_inter_points > 0)
+        {
+            first_inter_point(min_x, min_y, total_inter_points, points_list);
+            M_LOG2("min_x (%d), min_y (%d)", min_x, min_y);
+
+            int x_1st_inter = min_x;
+            int y_1st_inter = min_y;
+
+            vector<CVertexO> hole;
+
+            int x_curr_inter = min_x + 0;
+            int y_curr_inter = min_y + 0;
+            M_LOG2("Start point x_curr_inter (%d), y_curr_inter (%d)", x_curr_inter, y_curr_inter);
+
+            x_1st_inter = x_curr_inter;
+            y_1st_inter = y_curr_inter;
+
+            int x_pre_inter = x_curr_inter + 0;
+            int y_pre_inter = y_curr_inter + 1;
+
+            int temp = 0;
+            int x_pre_inter_1st = 0;
+            int y_pre_inter_1st = 0;
+            while (true)
+            {
+                move_next_RNk(x_pre_inter, y_pre_inter, x_curr_inter, y_curr_inter, 1);
+
+                if (xy[Cal_index_k(x_pre_inter, y_pre_inter, expanded_y, k_max)] == NULL)
+                {
+                    // set first point in hole
+                    x_pre_inter_1st = x_pre_inter;
+                    y_pre_inter_1st = y_pre_inter;
+                    int x_temp = x_pre_inter;
+                    int y_temp = y_pre_inter;
+                    move_next_RNk(x_temp, y_temp, x_curr_inter, y_curr_inter, 1);
+                    if (track_mesh[Cal_index_k(x_temp, y_temp, expanded_y, k_max)] == in_bound)
+                        break;
+                }
+                temp++;
+
+                if (temp == 8)
+                {
+                    x_pre_inter = x_pre_inter_1st;
+                    y_pre_inter = y_pre_inter_1st;
+                    break;
+                }
+            }
+            M_LOG2("Sttart point x_pre_inter (%d), y_pre_inter (%d)", x_pre_inter, y_pre_inter);
+
+            bool stop_inter = false;
+            bool found_1_point = false;
+            M_LOG2("------------index of hole: %d------------", kk);
+
+            while (!stop_inter)
+            {
+                // move pre point to next point on RNk ring
+                move_next_RNk(x_pre_inter, y_pre_inter, x_curr_inter, y_curr_inter, 1);
+                M_LOG2("* Move to next point RNk(p) x_pre_inter (%d), y_pre_inter (%d) *", x_pre_inter, y_pre_inter);
+                const int preInterIndex = Cal_index_k(x_pre_inter, y_pre_inter, expanded_y, k_max);
+
+                if (track_mesh[preInterIndex] >= norm_p)
+                {
+                    if (track_mesh[preInterIndex] == ex_bound)
+                    {
+                        // if meet external point -> check whether it have 1 neighbour is internal or no normal in neightbour
+                        if (check_interal_8_neigh(track_mesh, x_pre_inter, y_pre_inter, expanded_y, k_max) ||
+                            no_norm_8_neigh(track_mesh, x_pre_inter, y_pre_inter, expanded_y, k_max))
+                        {
+                            xy[preInterIndex]->C() = vcg::Color4b(0.3f, 1.0f, 1.0f, 1.0f); // Orange
+                            M_LOG2("\t\t\t * Found External point: x_pre_inter (%d), y_pre_inter (%d) *", x_re_inter, y_pre_inter);
+                            int x_temp = x_pre_inter;
+                            int y_temp = y_pre_inter;
+
+                            x_pre_inter = x_curr_inter;
+                            y_pre_inter = y_curr_inter;
+
+                            x_curr_inter = x_temp;
+                            y_curr_inter = y_temp;
+
+                            found_1_point = true;
+                            CVertexO temp = *xy[preInterIndex];
+                            hole.push_back(temp);
+                        }
+                    }
+                    else if (track_mesh[preInterIndex] == in_bound)
+                    {
+                        xy[preInterIndex]->C() = vcg::Color4b(238, 130, 238, 255); // Violet
+                        M_LOG2("\t\t\t * Found Interior point: x_pre_inter (%d), y_pre_inter (%d) *", x_pre_inter, y_pre_inter);
+                        int x_temp = x_pre_inter;
+                        int y_temp = y_pre_inter;
+
+                        x_pre_inter = x_curr_inter;
+                        y_pre_inter = y_curr_inter;
+
+                        x_curr_inter = x_temp;
+                        y_curr_inter = y_temp;
+
+                        found_1_point = true;
+                        CVertexO temp = *xy[preInterIndex];
+                        bool found = erase(points_list, temp);
+                        if (found)
+                            total_inter_points--;
+                        hole.push_back(temp);
+                    }
+                }
+                else
+                {
+                    M_LOG2("* No point: x_pre_inter (%d), y_pre_inter (%d) *", x_pre_inter, y_pre_inter);
+                }
+
+                if (found_1_point && (x_curr_inter == x_1st_inter) && (y_curr_inter == y_1st_inter))
+                {
+                    stop_inter = true;
+                    hole_list.push_back(hole); // copy a hole to list holes
+                    kk++;
+                }
+            }
+
+            M_LOG2("\t\t\t------------DONE ONE HOLE (m: %d)------------", kk);
+        } // top total_inter_points
+
+        for (unsigned int i = 0; i < hole_list.size(); i++)
+        {
+            for (unsigned int j = 0; j < hole_list.at(i).size(); j++)
+            {
+                //M_LOG2("* X (%f), Y (%f) *", hole_list.at(i).at(j).P().X(), hole_list.at(i).at(j).P().Y());
+            }
+        }
+    }
+    // end if (step2)
 
     md.mm()->updateDataMask(MeshModel::MM_VERTCOLOR);
     return outputValues;
