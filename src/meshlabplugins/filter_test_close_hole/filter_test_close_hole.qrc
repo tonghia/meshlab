@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>images/fill_hole.svg</file>
+    </qresource>
+</RCC>
