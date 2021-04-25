@@ -268,13 +268,15 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 							if( face::IsBorder(*fi,j) && !(*fi).IsV() )
 							{//Trovato una faccia di bordo non ancora visitata.
                                 (*fi).SetV();
-                                // (*fi).C().EnableColor();
-//                                auto ci = (*fi).C();
-//                                 fi->C() = vcg::Color4b(0, 1.0f, 1.0f, 1.0f);
-                                (*fi).C() = vcg::Color4b(0, 1.0f, 1.0f, 1.0f);
 								tri::Hole<CMeshO>::PosType sp(&*fi, j, (*fi).V(j));
 								tri::Hole<CMeshO>::PosType fp=sp;
 								int holesize=0;
+
+                                // (*fi).C() = vcg::Color4b(0, 255, 255, 255);
+								// CVertexO* v1 = (*fi).V(j);
+								// (*v1).C() = vcg::Color4b(255, 0, 255, 255);
+								// CVertexO* v2 = (*fi).V((j + 1) % 3);
+								// (*v2).C() = vcg::Color4b(255, 0, 255, 255);
 
 								tri::Hole<CMeshO>::Box3Type hbox;
 								hbox.Add(sp.v->cP());
@@ -287,7 +289,11 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 									++holesize;
 									sp.NextB();
 									sp.f->SetV();
+
+									// Set corlor of border face, vertex
 									sp.f->C().SetHSVColor(0, 1.0f, 1.0f);
+									sp.v->C() = vcg::Color4b(255, 0, 255, 255);
+
 									assert(sp.IsBorder());
 								}while(sp != fp);
 
