@@ -257,8 +257,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 			{
 				if(Selected && !(*fi).IsS())
 				{
-					//se devo considerare solo i triangoli selezionati e
-					//quello che sto considerando non lo e' lo marchio e vado avanti
+					//if I have to consider only the selected triangles e
+					//what I'm considering isn't marking it and moving on
 					(*fi).SetV();
 				}
 				else
@@ -266,7 +266,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 						for(int j =0; j<3 ; ++j)
 						{
 							if( face::IsBorder(*fi,j) && !(*fi).IsV() )
-							{//Trovato una faccia di bordo non ancora visitata.
+							{//Found a board face not yet visited.
                                 (*fi).SetV();
 								tri::Hole<CMeshO>::PosType sp(&*fi, j, (*fi).V(j));
 								tri::Hole<CMeshO>::PosType fp=sp;
@@ -297,10 +297,10 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 									assert(sp.IsBorder());
 								}while(sp != fp);
 
-								//ho recuperato l'inofrmazione su tutto il buco
+								//I recovered the information on the whole hole
                                 vinfo.push_back( tri::Hole<CMeshO>::Info(sp,holesize,hbox) );
 							}
-						}//for sugli edge del triangolo
+						}//for on the edges of the triangle
 				}//S & !S
 			}//!IsD()
 		}//for principale!!!
