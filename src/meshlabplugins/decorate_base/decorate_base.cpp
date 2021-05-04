@@ -32,6 +32,10 @@
 #include <QGLShader>
 #include <meshlab/glarea_setting.h>
 #include <wrap/gl/gl_type_name.h>
+//
+#include <vcg/complex/algorithms/hole.h>
+#include <vcg/space/color4.h>
+//
 using namespace vcg;
 using namespace std;
 
@@ -43,6 +47,7 @@ QString DecorateBasePlugin::decorationInfo(ActionIDType filter) const
 	case DP_SHOW_AXIS:              return tr("Draw XYZ axes in world coordinates");
 	case DP_SHOW_BOX_CORNERS:       return tr("Draw object's bounding box corners");
 	case DP_SHOW_NORMALS:           return tr("Draw per vertex/face normals");
+	case DP_SHOW_HOLE:              return tr("Draw hole normals");
 	case DP_SHOW_CURVATURE:         return tr("Draw per vertex/face principal curvature directions");
 	case DP_SHOW_LABEL:             return tr("Draw on all the vertex/edge/face a label with their index<br> Useful for debugging<br>(WARNING: do not use it on large meshes)");
 	case DP_SHOW_VERT_QUALITY_HISTOGRAM: return tr("Draw a (colored) Histogram of the per vertex quality");
@@ -66,6 +71,7 @@ QString DecorateBasePlugin::decorationName(ActionIDType filter) const
 	switch(filter)
 	{
 	case DP_SHOW_NORMALS:                return QString("Show Normal");
+	case DP_SHOW_HOLE:                   return QString("Show Hole");
 	case DP_SHOW_CURVATURE:              return QString("Show Curvature");
 	case DP_SHOW_BOX_CORNERS:            return QString("Show Box Corners");
 	case DP_SHOW_AXIS:                   return QString("Show Axis");
@@ -244,6 +250,147 @@ void DecorateBasePlugin::decorateMesh(const QAction* a, MeshModel &m, const Rich
 		glPopAttrib();
 	} break;
 		
+	case DP_SHOW_HOLE:
+	{
+		glPushAttrib(GL_ENABLE_BIT );
+		Scalarm NormalLen=rm->getFloat(HoleNormalLength());
+		Scalarm NormalWid = rm->getFloat(HoleNormalWidth());
+		vcg::Color4b VertNormalColor = rm->getColor4b(HoleNormalVertColor());
+		vcg::Color4b FaceNormalColor = rm->getColor4b(HoleNormalFaceColor());
+		bool showselection = rm->getBool(HoleNormalSelection());
+		
+		Scalarm LineLen = m.cm.bbox.Diag()*NormalLen;
+		
+		//query line width range
+		GLfloat widthRange[2];
+		widthRange[0] = 1.0f; widthRange[1] = 1.0f;
+		glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, widthRange);
+		
+		//set line width according to the width range
+		NormalWid = (NormalWid < widthRange[0]) ?  widthRange[0] :  NormalWid;
+		NormalWid = (NormalWid > widthRange[1]) ?  widthRange[1] :  NormalWid;
+		
+		//store current linewidth and set new line width
+		GLfloat lineWidthtmp[1];
+		glGetFloatv(GL_LINE_WIDTH, lineWidthtmp);
+		glLineWidth(NormalWid);
+		
+		glDisable(GL_LIGHTING);
+		glDisable(GL_TEXTURE_2D);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+		glBegin(GL_LINES);
+
+		if(rm->getBool(HoleNormalVertFlag())) // vert Normals
+		{
+			glColor(VertNormalColor);
+			// for(CMeshO::VertexIterator vi=m.cm.vert.begin();vi!=m.cm.vert.end();++vi) if(!(*vi).IsD())
+			// {
+			// 	if ((!showselection) || (showselection && vi->IsS()))
+			// 	{
+			// 		glVertex((*vi).P());
+			// 		glVertex((*vi).P() + (*vi).N()*LineLen);
+			// 	}
+			// }
+			// typename std::vector<tri::Hole<CMeshO>::Info>::iterator ith;
+
+            // for(auto vi = vvi.begin(); vi!= vvi.end(); ++vi)
+			// {
+			// 	if ((!showselection) || (showselection && vi->IsS()))
+			// 	{
+			// 		glVertex((*vi).P());
+			// 		glVertex((*vi).P() + (*vi).N()*LineLen);
+			// 	}
+			// }
+		}
+		if(rm->getBool(HoleNormalFaceFlag())) // face Normals
+		{
+			glColor(FaceNormalColor);
+            // for(auto fi=m.cm.face.begin();fi!=m.cm.face.end();++fi) if(!(*fi).IsD())
+			// {
+			// 	if ((!showselection) || (showselection && fi->IsS()))
+			// 	{
+			// 		Point3m b = Barycenter(*fi);
+			// 		glVertex(b);
+			// 		glVertex(b + (*fi).N()*LineLen);
+			// 	}
+			// }
+		}
+
+		// Start Find hole
+		m.updateDataMask(MeshModel::MM_FACEFACETOPO);
+		m.updateDataMask(MeshModel::MM_VERTCOLOR);
+		m.updateDataMask(MeshModel::MM_FACECOLOR);
+		CMeshO & cm = m.cm;
+
+		vector<tri::Hole<CMeshO>::Info> vinfo;
+		bool Selected = showselection;
+
+		// vector<CMeshO::FaceIterator> vfi;
+		// vector<CMeshO::VertexIterator> vvi;
+
+		tri::UpdateFlags<CMeshO>::FaceClearV(cm);
+        for(CMeshO::FaceIterator fi = cm.face.begin(); fi!=cm.face.end(); ++fi)
+        {
+			if(!(*fi).IsD())
+			{
+				if(Selected && !(*fi).IsS())
+				{
+					//if I have to consider only the selected triangles e
+					//what I'm considering isn't marking it and moving on
+					(*fi).SetV();
+				}
+				else
+				{
+						for(int j =0; j<3 ; ++j)
+						{
+							if( face::IsBorder(*fi,j) && !(*fi).IsV() )
+							{//Found a board face not yet visited.
+                                (*fi).SetV();
+								tri::Hole<CMeshO>::PosType sp(&*fi, j, (*fi).V(j));
+								tri::Hole<CMeshO>::PosType fp=sp;
+								int holesize=0;
+
+								tri::Hole<CMeshO>::Box3Type hbox;
+								hbox.Add(sp.v->cP());
+								//printf("Looping %i : (face %i edge %i) \n", VHI.size(),sp.f-&*m.face.begin(),sp.z);
+                                qDebug("Looping %i : (face %i edge %i) \n", vinfo.size(),sp.f-&*cm.face.begin(),sp.z);
+								sp.f->SetV();
+								do
+								{
+									sp.f->SetV();
+									hbox.Add(sp.v->cP());
+									++holesize;
+									sp.NextB();
+									sp.f->SetV();
+
+									// Set corlor of border face, vertex
+									sp.f->C().SetHSVColor(0, 1.0f, 1.0f);
+									sp.v->C() = vcg::Color4b(255, 0, 255, 255);
+
+									// vfi.push_back(fi);
+                                    // vvi.push_back(sp.v);
+                                    glVertex((*sp.v).P());
+                                    glVertex((*sp.v).P() + (*sp.v).N()*LineLen);
+
+									assert(sp.IsBorder());
+								}while(sp != fp);
+
+								//I recovered the information on the whole hole
+                                // vinfo.push_back( tri::Hole<CMeshO>::Info(sp,holesize,hbox) );
+							}
+						}//for on the edges of the triangle
+				}//S & !S
+			}//!IsD()
+		}//for principale!!!
+		// End Find hole
+		
+		glEnd();
+		//restore previous line width
+		glLineWidth(lineWidthtmp[0]);
+		glPopAttrib();
+	} break;
+
 	case DP_SHOW_BOX_CORNERS:
 	{
 		bool untransformed = rm->getBool(this->BBAbsParam());
@@ -525,6 +672,7 @@ int DecorateBasePlugin::getDecorationClass(const QAction *action) const
 	switch(ID(action))
 	{
 	case DP_SHOW_NORMALS :
+    case DP_SHOW_HOLE:
 	case DP_SHOW_CURVATURE :
 	case DP_SHOW_VERT_QUALITY_HISTOGRAM :
 	case DP_SHOW_FACE_QUALITY_HISTOGRAM :
@@ -1155,6 +1303,17 @@ void DecorateBasePlugin::initGlobalParameterList(const QAction* action, RichPara
 		parset.addParam(RichBool(NormalVertFlag(),true,"Per Vertex",""));
 		parset.addParam(RichBool(NormalFaceFlag(),true,"Per Face",""));
 		parset.addParam(RichBool(NormalSelection(), false, "Show Selected", ""));
+	} break;
+
+    case DP_SHOW_HOLE:
+	{
+		parset.addParam(RichFloat(HoleNormalLength(),0.05f,"Vector Length","The length of the normal expressed as a percentage of the bbox of the mesh"));
+		parset.addParam(RichFloat(HoleNormalWidth(), 1.0f,"Normal Width","The width of the normal expressed in pixels"));
+		parset.addParam(RichColor(HoleNormalVertColor(),QColor(102, 102, 255, 153),QString("Curr Vert Normal Color"),QString("Current Vert Normal Color")));
+		parset.addParam(RichColor(HoleNormalFaceColor(),QColor(102, 102, 255, 153),QString("Curr Face Normal Color"),QString("Current Face Normal Color")));
+		parset.addParam(RichBool(HoleNormalVertFlag(),true,"Per Vertex",""));
+		parset.addParam(RichBool(HoleNormalFaceFlag(),true,"Per Face",""));
+		parset.addParam(RichBool(HoleNormalSelection(), false, "Show Selected", ""));
 	} break;
 		
 	case DP_SHOW_CURVATURE : 
