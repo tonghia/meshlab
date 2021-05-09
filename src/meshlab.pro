@@ -95,6 +95,7 @@ SUBDIRS += \ #sub projects names
 	decorate_background \
 	decorate_raster_proj \
 	decorate_shadow \
+	decorate_mesh \
 	render_gdp \
 	render_radiance_scaling \
 # Edit Plugins
@@ -193,6 +194,7 @@ filter_test_close_hole.subdir = meshlabplugins/filter_test_close_hole
 decorate_background.subdir = meshlabplugins/decorate_background
 decorate_raster_proj.subdir = meshlabplugins/decorate_raster_proj
 decorate_shadow.subdir = meshlabplugins/decorate_shadow
+decorate_mesh.subdir = meshlabplugins/decorate_mesh
 render_gdp.subdir = meshlabplugins/render_gdp
 render_radiance_scaling.subdir = meshlabplugins/render_radiance_scaling
 # Edit Plugins
@@ -275,6 +277,7 @@ filter_test_close_hole.depends = common
 decorate_background.depends = common
 decorate_raster_proj.depends = common
 decorate_shadow.depends = common
+decorate_mesh.depends = common
 render_gdp.depends = common
 render_radiance_scaling.depends = common
 # Edit Plugins
