@@ -56,7 +56,6 @@ class DecorateBasePlugin : public QObject, public DecoratePlugin
 		DP_SHOW_QUALITY_CONTOUR,
 		DP_SHOW_CURVATURE,
 		DP_SHOW_LABEL,
-		DP_SHOW_HOLE
 	};
 	
 	float niceRound2(float value,float base);
@@ -81,8 +80,7 @@ public:
 					DP_SHOW_FACE_QUALITY_HISTOGRAM <<
 					DP_SHOW_QUALITY_CONTOUR <<
 					DP_SHOW_CURVATURE <<
-					DP_SHOW_LABEL <<
-					DP_SHOW_HOLE;
+					DP_SHOW_LABEL;
 		
 		ActionIDType tt;
 		foreach(tt , types())
@@ -180,14 +178,6 @@ public:
 	inline QString NormalSelection() const { return  "MeshLab::Decoration::NormalSelection"; }
 	inline QString NormalVertFlag() const { return  "MeshLab::Decoration::NormalVertFlag" ; }
 	inline QString NormalFaceFlag() const { return  "MeshLab::Decoration::NormalFaceFlag" ; }
-
-	inline QString HoleNormalLength() const { return  "MeshLab::Decoration::Hole::NormalLength" ; }
-	inline QString HoleNormalWidth() const { return  "MeshLab::Decoration::Hole::NormalWidth" ; }
-	inline QString HoleNormalVertColor() const { return  "MeshLab::Decoration::Hole::NormalVertColor" ; }
-	inline QString HoleNormalFaceColor() const { return  "MeshLab::Decoration::Hole::NormalFaceColor" ; }
-	inline QString HoleNormalSelection() const { return  "MeshLab::Decoration::Hole::NormalSelection"; }
-	inline QString HoleNormalVertFlag() const { return  "MeshLab::Decoration::Hole::NormalVertFlag" ; }
-	inline QString HoleNormalFaceFlag() const { return  "MeshLab::Decoration::Hole::NormalFaceFlag" ; }
 	
 	inline QString BBAbsParam() const { return  "MeshLab::Decoration::BBAbs" ; }
 	
