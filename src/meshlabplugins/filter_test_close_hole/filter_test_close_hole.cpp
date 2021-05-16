@@ -50,7 +50,7 @@ FilterFillHolePlugin::FilterFillHolePlugin()
 
         if (app != nullptr)
         {
-            if (tt == FP_TEST_CLOSE_HOLE)
+            if (tt == FP_TEST_FIND_HOLE)
             {
                 //				act->setShortcut(QKeySequence ("Ctrl+Del"));
                 act->setIcon(QIcon(":/images/fill_hole.svg"));
@@ -247,6 +247,9 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 		std::vector<tri::Hole<CMeshO>::Info> vinfo;
 		bool Selected = false; // TODO: put in param
+		std::vector<std::vector<CVertexO*>> vholeV;
+		int expandedVBit = CVertexO::NewBitFlag();
+		int borderVBit = CVertexO::NewBitFlag();
 
         // vcg::tri::Hole<CMeshO>::GetInfo(cm, Selected, vinfo);
 
@@ -278,6 +281,9 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 								// CVertexO* v2 = (*fi).V((j + 1) % 3);
 								// (*v2).C() = vcg::Color4b(255, 0, 255, 255);
 
+								qDebug("Hole %i detected \n", vinfo.size() + 1);
+								std::vector<CVertexO*> vBorderVertex;
+
 								tri::Hole<CMeshO>::Box3Type hbox;
 								hbox.Add(sp.v->cP());
 								//printf("Looping %i : (face %i edge %i) \n", VHI.size(),sp.f-&*m.face.begin(),sp.z);
@@ -291,11 +297,24 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 									sp.f->SetV();
 
 									// Set corlor of border face, vertex
-									sp.f->C().SetHSVColor(0, 1.0f, 1.0f);
+                                    sp.f->C().SetHSVColor(0, 1.0f, 1.0f);
+									sp.v->SetUserBit(borderVBit);
 									sp.v->C() = vcg::Color4b(255, 0, 255, 255);
+									// CVertexO* expandedFP = sp.f->V((sp.z + 2) % 3);
+									CVertexO* expandedFP = sp.f->V2(sp.z);
+									if (!expandedFP->IsUserBit(borderVBit)) {
+										expandedFP->C() = vcg::Color4b(255, 255, 0, 255);
+									}
+									int vIndex = sp.v->Index();
+
+                                	qDebug("Border Vertex index %i coord (x, y, z): (%f, %f, %f) \n", vIndex, sp.v->P().X(), sp.v->P().Y(), sp.v->P().Z());
+									vBorderVertex.push_back(sp.v);
 
 									assert(sp.IsBorder());
 								}while(sp != fp);
+
+								qDebug("End hole point log \n", vinfo.size() + 1);
+								vholeV.push_back(vBorderVertex);
 
 								//I recovered the information on the whole hole
                                 vinfo.push_back( tri::Hole<CMeshO>::Info(sp,holesize,hbox) );
