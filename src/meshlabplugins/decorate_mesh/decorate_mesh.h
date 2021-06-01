@@ -51,6 +51,8 @@ public:
 
 	int getDecorationClass(const QAction *) const;
 
+	void DrawVertLabel(std::vector<CVertexO*> &vv, QPainter *gla);
+
     inline QString MeshHoleNormalLength() const { return  "MeshLab::Decoration::Mesh::Hole::NormalLength" ; }
 	inline QString MeshHoleNormalWidth() const { return  "MeshLab::Decoration::Mesh::Hole::NormalWidth" ; }
 	inline QString MeshHoleNormalVertColor() const { return  "MeshLab::Decoration::Mesh::Hole::NormalVertColor" ; }

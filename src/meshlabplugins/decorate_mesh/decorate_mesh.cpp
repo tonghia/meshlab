@@ -65,6 +65,8 @@ void DecorateMeshPlugin::decorateMesh(const QAction* a, MeshModel &m, const Rich
 		
 	case DP_SHOW_HOLE:
 	{
+		std::vector<CVertexO*> vBoundaryVertex;
+
 		glPushAttrib(GL_ENABLE_BIT );
 		Scalarm NormalLen=rm->getFloat(MeshHoleNormalLength());
 		Scalarm NormalWid = rm->getFloat(MeshHoleNormalWidth());
@@ -183,8 +185,10 @@ void DecorateMeshPlugin::decorateMesh(const QAction* a, MeshModel &m, const Rich
 
 									// vfi.push_back(fi);
                                     // vvi.push_back(sp.v);
-                                    glVertex((*sp.v).P());
-                                    glVertex((*sp.v).P() + (*sp.v).N()*LineLen);
+									vBoundaryVertex.push_back(sp.v);
+
+                                    // glVertex((*sp.v).P());
+                                    // glVertex((*sp.v).P() + (*sp.v).N()*LineLen);
 
 									assert(sp.IsBorder());
 								}while(sp != fp);
@@ -197,15 +201,39 @@ void DecorateMeshPlugin::decorateMesh(const QAction* a, MeshModel &m, const Rich
 			}//!IsD()
 		}//for principale!!!
 		// End Find hole
+
+		for(CVertexO* vi: vBoundaryVertex)
+		{
+			glVertex((*vi).P());
+            glVertex((*vi).P() + (*vi).N()*LineLen);
+		}
 		
 		glEnd();
 		//restore previous line width
 		glLineWidth(lineWidthtmp[0]);
 		glPopAttrib();
+
+        DrawVertLabel(vBoundaryVertex, painter);
+
 	} break;
 		
 	} // end switch;
 	glPopMatrix();
+}
+
+
+void DecorateMeshPlugin::DrawVertLabel(std::vector<CVertexO*> &vv,QPainter *painter)
+{
+	glPushAttrib(GL_LIGHTING_BIT | GL_CURRENT_BIT | GL_DEPTH_BUFFER_BIT );
+	glDepthFunc(GL_ALWAYS);
+	glDisable(GL_LIGHTING);
+	glColor3f(.4f,.4f,.4f);
+    for(CVertexO* vi: vv)
+	{
+		if(!(*vi).IsD())
+			glLabel::render(painter, (*vi).P(),tr("%1").arg(vi->Index()),glLabel::Mode(textColor));
+	}
+	glPopAttrib();
 }
 
 int DecorateMeshPlugin::getDecorationClass(const QAction *action) const
