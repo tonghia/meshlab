@@ -27,6 +27,13 @@
 
 #include <vcg/space/color4.h>
 
+//#define _N_DEBUG1
+#ifdef _N_DEBUG1
+#define N_LOG1(...) qDebug(__VA_ARGS__)
+#else
+#define N_LOG1(...)
+#endif
+
 using namespace std;
 using namespace vcg;
 
@@ -249,7 +256,9 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		bool Selected = false; // TODO: put in param
 		std::vector<std::vector<CVertexO*>> vholeV;
 		int expandedVBit = CVertexO::NewBitFlag();
-		int borderVBit = CVertexO::NewBitFlag();
+		// int borderVBit = CVertexO::NewBitFlag();
+		int borderSharedBit = 15;
+		std::vector<std::vector<int>> vholeI;
 
         // vcg::tri::Hole<CMeshO>::GetInfo(cm, Selected, vinfo);
 
@@ -283,6 +292,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 								qDebug("Hole %i detected \n", vinfo.size() + 1);
 								std::vector<CVertexO*> vBorderVertex;
+								std::vector<int> vBorderIndex;
 
 								tri::Hole<CMeshO>::Box3Type hbox;
 								hbox.Add(sp.v->cP());
@@ -298,23 +308,29 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 									// Set corlor of border face, vertex
                                     sp.f->C().SetHSVColor(0, 1.0f, 1.0f);
-									sp.v->SetUserBit(borderVBit);
+									// sp.v->SetUserBit(borderVBit);
+									sp.v->SetUserBit(borderSharedBit);
 									sp.v->C() = vcg::Color4b(255, 0, 255, 255);
 									// CVertexO* expandedFP = sp.f->V((sp.z + 2) % 3);
 									CVertexO* expandedFP = sp.f->V2(sp.z);
-									if (!expandedFP->IsUserBit(borderVBit)) {
+									// if (!expandedFP->IsUserBit(borderVBit)) {
+									// 	expandedFP->C() = vcg::Color4b(255, 255, 0, 255);
+									// }
+									if (!expandedFP->IsUserBit(borderSharedBit)) {
 										expandedFP->C() = vcg::Color4b(255, 255, 0, 255);
 									}
 									int vIndex = sp.v->Index();
 
                                 	qDebug("Border Vertex index %i coord (x, y, z): (%f, %f, %f) \n", vIndex, sp.v->P().X(), sp.v->P().Y(), sp.v->P().Z());
 									vBorderVertex.push_back(sp.v);
+									vBorderIndex.push_back(sp.v->Index());
 
 									assert(sp.IsBorder());
 								}while(sp != fp);
 
 								qDebug("End hole point log \n", vinfo.size() + 1);
 								vholeV.push_back(vBorderVertex);
+								vholeI.push_back(vBorderIndex);
 
 								//I recovered the information on the whole hole
                                 vinfo.push_back( tri::Hole<CMeshO>::Info(sp,holesize,hbox) );
@@ -323,6 +339,49 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				}//S & !S
 			}//!IsD()
 		}//for principale!!!
+
+		for (std::vector<int> hole: vholeI) 
+		{
+			Point3m centerP(0, 0, 0);
+			for (int idx: hole)
+			{
+                centerP += cm.vert[idx].P();
+                qDebug("point x, y, z, index %i (%f, %f, %f)", cm.vert[idx].Index(), cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z());
+			}
+			centerP /= hole.size();
+			qDebug("hole center point x, y, z (%f, %f, %f) \n\n", centerP.X(), centerP.Y(), centerP.Z());
+
+			CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
+            vi->P() = centerP;
+            // CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertex(cm, centerP);
+
+			int prevI = -1;
+			int firstI = -1;
+			for (int idx: hole)
+			{
+				if (prevI == -1)
+				{
+                    prevI = idx;
+					firstI = idx;
+					continue;
+				}
+
+				qDebug("new mesh point 1 x, y, z, index %i (%f, %f, %f)", cm.vert[prevI].P().X(), cm.vert[prevI].P().Y(), cm.vert[prevI].P().Z(), cm.vert[prevI].Index());
+				qDebug("new mesh point 2 x, y, z, index %i (%f, %f, %f)", cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z(), cm.vert[idx].Index());
+				qDebug("new mesh point 3 x, y, z, index %i (%f, %f, %f)", vi->P().X(), vi->P().Y(), vi->P().Z(), vi->Index());
+
+				// CMeshO::FaceIterator fi = vcg::tri::Allocator<CMeshO>::AddFaces(cm, 1);
+				// fi->V(0)=prevP;
+				// fi->V(1)=v;
+				// fi->V(2)=&*vi;
+                vcg::tri::Allocator<CMeshO>::AddFace(cm, prevI, idx, vi->Index());
+
+                prevI = idx;
+			}
+			if (firstI != -1) {
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, firstI, prevI, vi->Index());
+			}
+		}
 
         log("Found %i holes",vinfo.size());
 		break;
