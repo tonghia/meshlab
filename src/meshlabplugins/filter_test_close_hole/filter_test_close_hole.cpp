@@ -22,9 +22,12 @@
 ****************************************************************************/
 
 #include "filter_test_close_hole.h"
-#include <vcg/complex/algorithms/hole.h>
 #include <QtGui>
+#include <tuple>
+#include <cmath>
+#include <numeric>
 
+#include <vcg/complex/algorithms/hole.h>
 #include <vcg/space/color4.h>
 
 //#define _N_DEBUG1
@@ -34,8 +37,190 @@
 #define N_LOG1(...)
 #endif
 
+#define _N_DEBUG_FIND_VERT
+#ifdef _N_DEBUG_FIND_VERT
+#define N_LOG_FIND_VERT(...) qDebug(__VA_ARGS__)
+#else
+#define N_LOG_FIND_VERT(...)
+#endif
+
+#define _N_DEBUG_FILL_VERT
+#ifdef _N_DEBUG_FILL_VERT
+#define N_LOG_FILL_VERT(...) qDebug(__VA_ARGS__)
+#else
+#define N_LOG_FILL_VERT(...)
+#endif
+
 using namespace std;
 using namespace vcg;
+
+// our extra functions
+
+// functions declaration
+const char* pointToString(Point3m p);
+int solveQuadraticEquation(float a, float b, float c,float &x1, float &x2);
+Point3m findHoleCenterPoint(CMeshO& cm, std::vector<int> hole);
+
+// functions implementation
+float distance2Points(Point3m p1, Point3m p2) 
+{
+	return sqrt(pow(p2.X() - p1.X(), 2) + pow(p2.Y() - p1.Y(), 2) + pow(p2.Z() - p1.Z(), 2));
+}
+
+float calcAvgDistance(std::vector<float> v_distance)
+{
+    return v_distance.size() == 0 ? 0 : std::accumulate(v_distance.begin(), v_distance.end(), decltype(v_distance)::value_type(0)) / v_distance.size();
+}
+
+/**
+ *  Find next point to fill in the hole by create new Isosceles triangle
+ *        * R
+ *       *|*         RM is perpendicular with AB
+ *      * | *        M is the midpoint of AB
+ *     *  |  *
+ *  A * * * * * B
+ *        M
+*/
+Point3m findFilledVertByIsosceles(Point3m p1, Point3m p2, float filling_point_distance, Point3m hole_center, float edge_distance)
+{
+	N_LOG_FIND_VERT("\n\nStart log find vertext to fill");
+	N_LOG_FIND_VERT("First point %s", pointToString(p1));
+	N_LOG_FIND_VERT("Second point %s", pointToString(p2));
+	N_LOG_FIND_VERT("Hole center point %s", pointToString(hole_center));
+	N_LOG_FIND_VERT("border edge distance %f, filling_point_distance %f", edge_distance, filling_point_distance);
+	// Find the height of Isosceles
+	float h = sqrt(pow(filling_point_distance, 2) - pow(edge_distance / 2, 2));
+	// Find the midpoint of border edge
+	Point3m pM = (p1 + p2) / 2;
+	N_LOG_FIND_VERT("Midpoint of border %s, isosceles triangle height %f", pointToString(pM), h); 
+	// Find coord vector AB 
+	Point3m vAB = p2 - p1;
+	N_LOG_FIND_VERT("Vector border edge %s", pointToString(vAB)); 
+	// Find the new z of filling point
+	float z = (p1.Z() + p2.Z()) / 2;
+	// We have a system of equations with M(xm, ym, zm) and R(xr, yr, zr)
+	// vMR . vAB(a, b, c) = 0 => (xr - xm)*a + (yr - ym)*b + (zr- zm)*c = 0
+	// MR = h => (xr-xm)^2 + (yr-ym)^2 + (zr-zm)^2 = h
+	// dx = xr - xm, dy = yr - ym, dz = zr - zm => dr*a + dy*b + dz*c = 0 => dx = - (dy*b + dz*c) / a
+	// => ((dy*b + dz*c) / a )^2 + dy^2 + dz^2 = h^2
+	// => (dy*b + dz*c)^2 + a^2*dy^2 + a^2*dz^x - a^2*h^2 = 0
+	// => (b + a^2)*dy^x
+	float dx1 = 0, dx2 = 0;
+	float dy1 = 0, dy2 = 0;
+	float dz = z - pM.Z();
+
+	// with a.x^2 + b.x + c = 0
+	float a = pow(vAB.X(), 2) + pow(vAB.Y(), 2);
+	float b = 2 * pow(vAB.X(), 2) * vAB.Y() * vAB.Z() * dz;
+	float c = (pow(vAB.X(), 2) * dz + pow(vAB.Z(), 2)) * dz - pow(vAB.X(), 2) * pow(h, 2);
+	N_LOG_FIND_VERT("Params to solve equation %f %f %f", a, b, c); 
+
+	solveQuadraticEquation(a, b, c, dy1, dy2);
+
+	dx1 = - (dy1 * vAB.Y() + dz * vAB.Z()) / vAB.X();
+	dx2 = - (dy2 * vAB.Y() + dz * vAB.Z()) / vAB.X();
+	N_LOG_FIND_VERT("Coord of vector MR dy1 %f, dy2 %f, dx1 %f, dx2 %f", dy1, dy2, dx1, dx2);
+
+	// N_LOG_FIND_VERT("Test cross product vAB and vMR with dy1: %f", vAB.X() * dx1 + vAB.Y() * dy1 + vAB.Z() * dz);
+	// N_LOG_FIND_VERT("Test cross product vAB and vMR with dy2: %f", vAB.X() * dx2 + vAB.Y() * dy2 + vAB.Z() * dz);
+	// N_LOG_FIND_VERT("Test quadratic equation dy1: %f", a * pow(dy1, 2) + b * dy1 + dz);
+	// N_LOG_FIND_VERT("Test quadratic equation dy2: %f", a * pow(dy2, 2) + b * dy2 + dz);
+	// N_LOG_FIND_VERT("Test length of MR and height with dy1: %f", sqrt(pow(dx1, 2) + pow(dy1, 2) + pow(dz, 2)));
+	// N_LOG_FIND_VERT("Test length of MR and height with dy2: %f", sqrt(pow(dx2, 2) + pow(dy2, 2) + pow(dz, 2)));
+
+	// we have 2 points R1(x1, y1, z), R2(x2, y2, z)
+	float x1 = dx1 + pM.X();
+	float y1 = dy1 + pM.Y();
+	float x2 = dx2 + pM.X();
+	float y2 = dy2 + pM.Y();
+	Point3m pR1(x1, y1, z);
+	Point3m pR2(x2, y2, z);
+	N_LOG_FIND_VERT("Midpoint of border %s, isosceles triangle height %f", pointToString(pM), h); 
+	N_LOG_FIND_VERT("pR1  %s", pointToString(pR1)); 
+	N_LOG_FIND_VERT("pR2  %s", pointToString(pR2)); 
+
+	// N_LOG_FIND_VERT("Test length of MR and height with pR1: %f", distance2Points(pM, pR1));
+	// N_LOG_FIND_VERT("Test length of MR and height with pR2: %f", distance2Points(pM, pR2));
+
+	// get the length of R1C and R2C with C is the hole_center
+	float dc1 = distance2Points(pR1, hole_center);
+	float dc2 = distance2Points(pR2, hole_center);
+	N_LOG_FIND_VERT("Result of fill point %s bc dc1 = %f, dc2 = %f", pointToString(dc1 > dc2 ? pR2 : pR1), dc1, dc2); 
+
+	N_LOG_FIND_VERT("End log find vertext to fill \n\n");
+	// get the point closer to center
+	return dc1 > dc2 ? pR2 : pR1;
+}
+
+int solveQuadraticEquation(float a, float b, float c, float &x1, float &x2){
+    float delta = b*b - 4*a*c;
+    if(delta<0){
+        x1=x2=0.0;
+        return 0;
+    }
+    else if(delta==0){
+        x1 = x2 = -b/(2*a);
+        return 1;
+    }
+    else{
+        delta = sqrt(delta);
+        x1 = (-b + delta) / (2*a);
+        x2 = (-b - delta) / (2*a);
+        return 2;
+    }
+}
+
+const char* pointToString(Point3m p)
+{
+	string s = "(x, y, z) - (" + to_string(p.X()) + ", " + to_string(p.Y()) + ", " + to_string(p.Z()) + ")";
+	return s.c_str();
+}
+
+void fillHoleByIsoscelesTriangle(CMeshO& cm, std::vector<int> hole, std::vector<float> vDistance, float nextPointDistance)
+{
+	if (hole.size() == 0) 
+	{
+		return;
+	}
+
+    Point3m centerPoint = findHoleCenterPoint(cm, hole);
+	for (int i = 0; i < hole.size(); ++i)
+	{
+        int nextIndex = i == hole.size() - 1 ? 0 : i + 1;
+		N_LOG_FILL_VERT("index of vert %i %i", hole[i], hole[nextIndex]);
+		int firstIndex = hole[i];
+		int secondIndex = hole[nextIndex];
+		auto firstVert = cm.vert[hole[i]];
+		auto secondVert = cm.vert[hole[nextIndex]];
+		N_LOG_FILL_VERT("firstVert %s", pointToString(firstVert.P()));
+		N_LOG_FILL_VERT("secondVert %s", pointToString(secondVert.P()));
+
+        Point3m fillPoint = findFilledVertByIsosceles(firstVert.P(), secondVert.P(), nextPointDistance, centerPoint, vDistance[i]);
+		N_LOG_FILL_VERT("filling point %s", pointToString(fillPoint));
+		// add point to mesh
+        CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
+        vi->P() = fillPoint;
+        N_LOG_FILL_VERT("mesh vert size %i, first index %i, second index %i, new index %i", cm.vert.size(), firstIndex, secondIndex, vi->Index());
+        vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIndex, secondIndex, vi->Index());
+	}
+
+	return;
+}
+
+Point3m findHoleCenterPoint(CMeshO& cm, std::vector<int> hole)
+{
+	assert(hole.size() > 0);
+	
+	Point3m centerPoint(0, 0, 0);
+	for (int idx: hole)
+	{
+		centerPoint += cm.vert[idx].P();
+	}
+
+	return centerPoint / hole.size();
+}
+
+// end extra functions
 
 /**
  * @brief Constructor usually performs only two simple tasks of filling the two lists
@@ -45,8 +230,8 @@ using namespace vcg;
 FilterFillHolePlugin::FilterFillHolePlugin()
 {
 	typeList = {
-        FP_TEST_CLOSE_HOLE,
-		FP_TEST_FIND_HOLE
+        FP_TEST_DP_CLOSE_HOLE,
+		FP_TEST_CLOSE_HOLE
     };
 
 	QCoreApplication *app = QCoreApplication::instance();
@@ -57,7 +242,7 @@ FilterFillHolePlugin::FilterFillHolePlugin()
 
         if (app != nullptr)
         {
-            if (tt == FP_TEST_FIND_HOLE)
+            if (tt == FP_TEST_CLOSE_HOLE)
             {
                 //				act->setShortcut(QKeySequence ("Ctrl+Del"));
                 act->setIcon(QIcon(":/images/fill_hole.svg"));
@@ -76,8 +261,8 @@ FilterFillHolePlugin::FilterClass FilterFillHolePlugin::getClass(const QAction *
 {
 	switch (ID(a))
 	{
+	case FP_TEST_DP_CLOSE_HOLE: return FilterPlugin::Remeshing;
 	case FP_TEST_CLOSE_HOLE: return FilterPlugin::Remeshing;
-	case FP_TEST_FIND_HOLE: return FilterPlugin::Remeshing;
 
 	default: assert(0); return FilterPlugin::Generic;
 	}
@@ -95,9 +280,9 @@ QString FilterFillHolePlugin::filterName(ActionIDType filterId) const
 {
 	switch (filterId)
 	{
-	case FP_TEST_CLOSE_HOLE:
+	case FP_TEST_DP_CLOSE_HOLE:
 		return "surface fill hole";
-	case FP_TEST_FIND_HOLE:
+	case FP_TEST_CLOSE_HOLE:
 		return "find mesh hole";
 	default:
 		return "";
@@ -114,9 +299,9 @@ QString FilterFillHolePlugin::filterInfo(ActionIDType filterId) const
 {
 	switch (filterId)
 	{
-	case FP_TEST_CLOSE_HOLE:
+	case FP_TEST_DP_CLOSE_HOLE:
 		return "fill hole algo.";
-	case FP_TEST_FIND_HOLE:
+	case FP_TEST_CLOSE_HOLE:
 		return "find hole algo.";
 	default:
 		return "Unknown Filter";
@@ -131,9 +316,9 @@ int FilterFillHolePlugin::getPreConditions(const QAction *action) const
 {
     switch (ID(action))
 	{
-	case FP_TEST_CLOSE_HOLE:
+	case FP_TEST_DP_CLOSE_HOLE:
 		return MeshModel::MM_FACENUMBER;
-	case FP_TEST_FIND_HOLE:
+	case FP_TEST_CLOSE_HOLE:
 		return MeshModel::MM_FACENUMBER;
 	}
 
@@ -148,9 +333,9 @@ int FilterFillHolePlugin::postCondition(const QAction *action) const
 {
 	switch (ID(action))
 	{
-	case FP_TEST_CLOSE_HOLE:
+	case FP_TEST_DP_CLOSE_HOLE:
 		return MeshModel::MM_GEOMETRY_AND_TOPOLOGY_CHANGE;
-	case FP_TEST_FIND_HOLE:
+	case FP_TEST_CLOSE_HOLE:
 		return MeshModel::MM_GEOMETRY_AND_TOPOLOGY_CHANGE;
 	}
 
@@ -178,13 +363,19 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 
 	switch (ID(action))
 	{
-	case FP_TEST_CLOSE_HOLE:
+	case FP_TEST_DP_CLOSE_HOLE:
 		parlst.addParam(RichInt ("MaxHoleSize",(int)30,"Max size to be closed ","The size is expressed as number of edges composing the hole boundary"));
 		parlst.addParam(RichBool("Selected",m.cm.sfn>0,"Close holes with selected faces","Only the holes with at least one of the boundary faces selected are closed"));
 		parlst.addParam(RichBool("NewFaceSelected",true,"Select the newly created faces","After closing a hole the faces that have been created are left selected. Any previous selection is lost. Useful for example for smoothing the newly created holes."));
 		parlst.addParam(RichBool("SelfIntersection",true,"Prevent creation of selfIntersecting faces","When closing an holes it tries to prevent the creation of faces that intersect faces adjacent to the boundary of the hole. It is an heuristic, non intersetcting hole filling can be NP-complete."));
 		break;
-	case FP_TEST_FIND_HOLE:
+	case FP_TEST_CLOSE_HOLE:
+	{
+		QStringList shotType;
+		shotType.push_back("Compound");
+		shotType.push_back("Center point");
+		parlst.addParam(RichEnum("algo", 0, shotType, tr("Algorithm type"), tr("Choose the algorithm to close hole")));
+	}
 		break;
 	default:
 		break;
@@ -209,7 +400,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 	MeshModel &m = *(md.mm());
 	switch (ID(action))
 	{
-	case FP_TEST_CLOSE_HOLE:
+	case FP_TEST_DP_CLOSE_HOLE:
 	{
 		m.updateDataMask(MeshModel::MM_FACEFACETOPO);
 		if (tri::Clean<CMeshO>::CountNonManifoldEdgeFF(m.cm) > 0)
@@ -241,7 +432,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		}
 		break;
 	}
-	case FP_TEST_FIND_HOLE:
+	case FP_TEST_CLOSE_HOLE:
 	{
 		m.updateDataMask(MeshModel::MM_FACEFACETOPO);
 		m.updateDataMask(MeshModel::MM_VERTCOLOR);
@@ -259,6 +450,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		// int borderVBit = CVertexO::NewBitFlag();
 		int borderSharedBit = 15;
 		std::vector<std::vector<int>> vholeI;
+		std::vector<std::tuple<std::vector<int>, Point3m, std::vector<float>>> vholeInfo;
 
         // vcg::tri::Hole<CMeshO>::GetInfo(cm, Selected, vinfo);
 
@@ -293,6 +485,10 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 								qDebug("Hole %i detected \n", vinfo.size() + 1);
 								std::vector<CVertexO*> vBorderVertex;
 								std::vector<int> vBorderIndex;
+								Point3m holeCenter(0, 0, 0);
+								std::vector<float> vDistanceVert;
+								Point3m prevPoint = sp.v->P();
+								bool hasPrevP = true;
 
 								tri::Hole<CMeshO>::Box3Type hbox;
 								hbox.Add(sp.v->cP());
@@ -325,12 +521,29 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 									vBorderVertex.push_back(sp.v);
 									vBorderIndex.push_back(sp.v->Index());
 
+									// update hole center point
+									holeCenter += sp.v->P();
+									if (!hasPrevP) 
+									{
+										hasPrevP = true;
+										prevPoint = sp.v->P();
+									} else {
+										vDistanceVert.push_back(distance2Points(sp.v->P(), prevPoint));
+										// set prevP after calc distance
+										prevPoint = sp.v->P();
+									}
+
 									assert(sp.IsBorder());
 								}while(sp != fp);
 
-								qDebug("End hole point log \n", vinfo.size() + 1);
+								// vDistanceVert.push_back(distance2Points(sp.v->P(), prevPoint));
+
+								qDebug("End hole point log");
 								vholeV.push_back(vBorderVertex);
 								vholeI.push_back(vBorderIndex);
+								holeCenter /= holesize;
+                                vholeInfo.push_back(std::make_tuple(vBorderIndex, holeCenter, vDistanceVert));
+								qDebug("hole center coord x, y, z (%f, %f, %f) \n\n", holeCenter.X(), holeCenter.Y(), holeCenter.Z());
 
 								//I recovered the information on the whole hole
                                 vinfo.push_back( tri::Hole<CMeshO>::Info(sp,holesize,hbox) );
@@ -340,48 +553,86 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 			}//!IsD()
 		}//for principale!!!
 
-		for (std::vector<int> hole: vholeI) 
+		switch(par.getEnum("algo"))
 		{
-			Point3m centerP(0, 0, 0);
-			for (int idx: hole)
+			case 0:
 			{
-                centerP += cm.vert[idx].P();
-                qDebug("point x, y, z, index %i (%f, %f, %f)", cm.vert[idx].Index(), cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z());
-			}
-			centerP /= hole.size();
-			qDebug("hole center point x, y, z (%f, %f, %f) \n\n", centerP.X(), centerP.Y(), centerP.Z());
-
-			CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
-            vi->P() = centerP;
-            // CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertex(cm, centerP);
-
-			int prevI = -1;
-			int firstI = -1;
-			for (int idx: hole)
-			{
-				if (prevI == -1)
+				// 1. calculate average distance
+				// 2. add points by new average distance
+				// 3. modify and improve
+				for (std::tuple<std::vector<int>, Point3m, std::vector<float>> hole: vholeInfo) 
 				{
-                    prevI = idx;
-					firstI = idx;
-					continue;
+					std::vector<int> vVertIndex;
+					Point3m centerPoint;
+					std::vector<float> vDistance;
+					tie(vVertIndex, centerPoint, vDistance) = hole;
+                    if (vVertIndex.size() > 30) {
+						continue;
+					}
+					float avgDistance = calcAvgDistance(vDistance);
+					qDebug("start one hole filling with distance %f", avgDistance);
+
+					fillHoleByIsoscelesTriangle(cm, vVertIndex, vDistance, avgDistance);
+
+					qDebug("End one hole filling");
 				}
 
-				qDebug("new mesh point 1 x, y, z, index %i (%f, %f, %f)", cm.vert[prevI].P().X(), cm.vert[prevI].P().Y(), cm.vert[prevI].P().Z(), cm.vert[prevI].Index());
-				qDebug("new mesh point 2 x, y, z, index %i (%f, %f, %f)", cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z(), cm.vert[idx].Index());
-				qDebug("new mesh point 3 x, y, z, index %i (%f, %f, %f)", vi->P().X(), vi->P().Y(), vi->P().Z(), vi->Index());
-
-				// CMeshO::FaceIterator fi = vcg::tri::Allocator<CMeshO>::AddFaces(cm, 1);
-				// fi->V(0)=prevP;
-				// fi->V(1)=v;
-				// fi->V(2)=&*vi;
-                vcg::tri::Allocator<CMeshO>::AddFace(cm, prevI, idx, vi->Index());
-
-                prevI = idx;
 			}
-			if (firstI != -1) {
-				vcg::tri::Allocator<CMeshO>::AddFace(cm, firstI, prevI, vi->Index());
+				break;
+			case 1: 
+			{
+				for (std::vector<int> hole: vholeI) 
+				{
+					Point3m centerP(0, 0, 0);
+					for (int idx: hole)
+					{
+						centerP += cm.vert[idx].P();
+						qDebug("point x, y, z, index %i (%f, %f, %f)", cm.vert[idx].Index(), cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z());
+					}
+					centerP /= hole.size();
+					qDebug("hole center point x, y, z (%f, %f, %f) \n\n", centerP.X(), centerP.Y(), centerP.Z());
+
+					CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
+					vi->P() = centerP;
+					// CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertex(cm, centerP);
+
+					int prevI = -1;
+					int firstI = -1;
+					for (int idx: hole)
+					{
+						if (prevI == -1)
+						{
+							prevI = idx;
+							firstI = idx;
+							continue;
+						}
+
+						qDebug("new mesh point 1 x, y, z, index %i (%f, %f, %f)", cm.vert[prevI].P().X(), cm.vert[prevI].P().Y(), cm.vert[prevI].P().Z(), cm.vert[prevI].Index());
+						qDebug("new mesh point 2 x, y, z, index %i (%f, %f, %f)", cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z(), cm.vert[idx].Index());
+						qDebug("new mesh point 3 x, y, z, index %i (%f, %f, %f)", vi->P().X(), vi->P().Y(), vi->P().Z(), vi->Index());
+
+						// CMeshO::FaceIterator fi = vcg::tri::Allocator<CMeshO>::AddFaces(cm, 1);
+						// fi->V(0)=prevP;
+						// fi->V(1)=v;
+						// fi->V(2)=&*vi;
+						vcg::tri::Allocator<CMeshO>::AddFace(cm, prevI, idx, vi->Index());
+
+						prevI = idx;
+					}
+					if (firstI != -1) {
+						vcg::tri::Allocator<CMeshO>::AddFace(cm, firstI, prevI, vi->Index());
+					}
+				}
+			} // end case 1
+				break;
+			case 2: 
+			{
+
 			}
-		}
+				break;
+			default:
+				assert(0);
+		} // end switch
 
         log("Found %i holes",vinfo.size());
 		break;
