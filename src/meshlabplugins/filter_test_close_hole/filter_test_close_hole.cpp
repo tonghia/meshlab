@@ -26,6 +26,7 @@
 #include <tuple>
 #include <cmath>
 #include <numeric>
+#include <map>
 
 #include <vcg/complex/algorithms/hole.h>
 #include <vcg/space/color4.h>
@@ -70,6 +71,19 @@ float distance2Points(Point3m p1, Point3m p2)
 float calcAvgDistance(std::vector<float> v_distance)
 {
     return v_distance.size() == 0 ? 0 : std::accumulate(v_distance.begin(), v_distance.end(), decltype(v_distance)::value_type(0)) / v_distance.size();
+}
+
+Point3m calcAvgPoint(std::vector<int> vIndex, CMeshO& cm)
+{
+	assert(vIndex.size() != 0);
+
+	Point3m rs(0, 0, 0);
+	for (int index: vIndex)
+	{
+		rs += cm.vert[index]->P();
+	}
+	
+	return rs / vIndex.size();
 }
 
 /**
@@ -184,6 +198,8 @@ void fillHoleByIsoscelesTriangle(CMeshO& cm, std::vector<int> hole, std::vector<
 	}
 
     Point3m centerPoint = findHoleCenterPoint(cm, hole);
+	// map<int, vector<int>> fillPointMap;
+	int prevFillIndex = -1;
 	for (int i = 0; i < hole.size(); ++i)
 	{
         int nextIndex = i == hole.size() - 1 ? 0 : i + 1;
@@ -197,9 +213,25 @@ void fillHoleByIsoscelesTriangle(CMeshO& cm, std::vector<int> hole, std::vector<
 
         Point3m fillPoint = findFilledVertByIsosceles(firstVert.P(), secondVert.P(), nextPointDistance, centerPoint, vDistance[i]);
 		N_LOG_FILL_VERT("filling point %s", pointToString(fillPoint));
+
+		// check last filled point in map to group near point
+		if (prevFillIndex != -1)
+		{
+			Point3m prevFillPoint = cm.vert[prevFillIndex].P();
+			if (distance2Points(prevFillPoint, fillPoint) < nextPointDistance)
+			{
+				// make average current and last filled point, should be avg of all component points
+                cm.vert[prevFillIndex].P() = (prevFillPoint + fillPoint) / 2;
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIndex, secondIndex, prevFillIndex);
+				continue;
+			}
+		}
+		
+
 		// add point to mesh
         CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
         vi->P() = fillPoint;
+		prevFillIndex = vi->Index();
         N_LOG_FILL_VERT("mesh vert size %i, first index %i, second index %i, new index %i", cm.vert.size(), firstIndex, secondIndex, vi->Index());
         vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIndex, secondIndex, vi->Index());
 	}
@@ -210,7 +242,7 @@ void fillHoleByIsoscelesTriangle(CMeshO& cm, std::vector<int> hole, std::vector<
 Point3m findHoleCenterPoint(CMeshO& cm, std::vector<int> hole)
 {
 	assert(hole.size() > 0);
-	
+
 	Point3m centerPoint(0, 0, 0);
 	for (int idx: hole)
 	{
@@ -372,7 +404,7 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 	case FP_TEST_CLOSE_HOLE:
 	{
 		QStringList shotType;
-		shotType.push_back("Compound");
+		shotType.push_back("Isosceles");
 		shotType.push_back("Center point");
 		parlst.addParam(RichEnum("algo", 0, shotType, tr("Algorithm type"), tr("Choose the algorithm to close hole")));
 	}
