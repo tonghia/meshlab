@@ -80,7 +80,7 @@ Point3m calcAvgPoint(std::vector<int> vIndex, CMeshO& cm)
 	Point3m rs(0, 0, 0);
 	for (int index: vIndex)
 	{
-		rs += cm.vert[index]->P();
+        rs += cm.vert[index].P();
 	}
 	
 	return rs / vIndex.size();
@@ -404,8 +404,9 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 	case FP_TEST_CLOSE_HOLE:
 	{
 		QStringList shotType;
-		shotType.push_back("Isosceles");
+		shotType.push_back("Ring by ring");
 		shotType.push_back("Center point");
+		shotType.push_back("Isosceles");
 		parlst.addParam(RichEnum("algo", 0, shotType, tr("Algorithm type"), tr("Choose the algorithm to close hole")));
 	}
 		break;
@@ -482,7 +483,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		// int borderVBit = CVertexO::NewBitFlag();
 		int borderSharedBit = 15;
 		std::vector<std::vector<int>> vholeI;
-		std::vector<std::tuple<std::vector<int>, Point3m, std::vector<float>>> vholeInfo;
+		std::vector<std::tuple<std::vector<int>, std::vector<float>>> vholeInfo;
 
         // vcg::tri::Hole<CMeshO>::GetInfo(cm, Selected, vinfo);
 
@@ -517,7 +518,6 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 								qDebug("Hole %i detected \n", vinfo.size() + 1);
 								std::vector<CVertexO*> vBorderVertex;
 								std::vector<int> vBorderIndex;
-								Point3m holeCenter(0, 0, 0);
 								std::vector<float> vDistanceVert;
 								Point3m prevPoint = sp.v->P();
 								bool hasPrevP = true;
@@ -553,8 +553,6 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 									vBorderVertex.push_back(sp.v);
 									vBorderIndex.push_back(sp.v->Index());
 
-									// update hole center point
-									holeCenter += sp.v->P();
 									if (!hasPrevP) 
 									{
 										hasPrevP = true;
@@ -573,9 +571,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 								qDebug("End hole point log");
 								vholeV.push_back(vBorderVertex);
 								vholeI.push_back(vBorderIndex);
-								holeCenter /= holesize;
-                                vholeInfo.push_back(std::make_tuple(vBorderIndex, holeCenter, vDistanceVert));
-								qDebug("hole center coord x, y, z (%f, %f, %f) \n\n", holeCenter.X(), holeCenter.Y(), holeCenter.Z());
+                                vholeInfo.push_back(std::make_tuple(vBorderIndex, vDistanceVert));
 
 								//I recovered the information on the whole hole
                                 vinfo.push_back( tri::Hole<CMeshO>::Info(sp,holesize,hbox) );
@@ -589,26 +585,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		{
 			case 0:
 			{
-				// 1. calculate average distance
-				// 2. add points by new average distance
-				// 3. modify and improve
-				for (std::tuple<std::vector<int>, Point3m, std::vector<float>> hole: vholeInfo) 
-				{
-					std::vector<int> vVertIndex;
-					Point3m centerPoint;
-					std::vector<float> vDistance;
-					tie(vVertIndex, centerPoint, vDistance) = hole;
-                    if (vVertIndex.size() > 30) {
-						continue;
-					}
-					float avgDistance = calcAvgDistance(vDistance);
-					qDebug("start one hole filling with distance %f", avgDistance);
-
-					fillHoleByIsoscelesTriangle(cm, vVertIndex, vDistance, avgDistance);
-
-					qDebug("End one hole filling");
-				}
-
+				
 			}
 				break;
 			case 1: 
@@ -659,6 +636,24 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				break;
 			case 2: 
 			{
+				// 1. calculate average distance
+				// 2. add points by new average distance
+				// 3. modify and improve
+                for (std::tuple<std::vector<int>, std::vector<float>> hole: vholeInfo)
+				{
+					std::vector<int> vVertIndex;
+					std::vector<float> vDistance;
+					tie(vVertIndex, vDistance) = hole;
+                    if (vVertIndex.size() > 30) {
+						continue;
+					}
+					float avgDistance = calcAvgDistance(vDistance);
+					qDebug("start one hole filling with distance %f", avgDistance);
+
+					fillHoleByIsoscelesTriangle(cm, vVertIndex, vDistance, avgDistance);
+
+					qDebug("End one hole filling");
+				}
 
 			}
 				break;
