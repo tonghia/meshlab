@@ -317,7 +317,7 @@ void fillHoleByCenter(CMeshO& cm, std::vector<int> hole)
 	return;
 }
 
-void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold)
+void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep)
 {
 	if (hole.size() == 0) 
 	{
@@ -366,6 +366,10 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold)
         vcg::tri::Allocator<CMeshO>::AddFace(cm, prevFilledIndex, prevIndex, firstFilledIndex);
 
 		hole = reducedHole;
+
+		if (stepByStep) {
+			break;
+		}
 	}
 	
 	return;
@@ -527,6 +531,7 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 		shotType.push_back("Center point");
 		shotType.push_back("Isosceles");
 		parlst.addParam(RichEnum("algo", 0, shotType, tr("Algorithm type"), tr("Choose the algorithm to close hole")));
+        parlst.addParam(RichFloat("threshold", 0, "Threshold", "Set a threshold > 0 for filling hole step by step"));
 	}
 		break;
 	default:
@@ -700,6 +705,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 			}//!IsD()
 		}//for principale!!!
 
+        float threshold = par.getFloat("threshold");
+		bool stepByStep = true;
 		switch(par.getEnum("algo"))
 		{
 			case 0:
@@ -716,10 +723,13 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 						continue;
 					}
 					float avgDistance = calcAvgDistance(vDistance);
-					float threshold = avgDistance / 2;
+					if (threshold <= 0) {
+                        threshold = avgDistance / 2;
+						stepByStep = false;
+					}
 					qDebug("start one hole filling with threshold %f", threshold);
 
-					fillHoleRingByRing(cm, vVertIndex, threshold);
+					fillHoleRingByRing(cm, vVertIndex, threshold, stepByStep);
 
 					qDebug("End one hole filling");
 				}
