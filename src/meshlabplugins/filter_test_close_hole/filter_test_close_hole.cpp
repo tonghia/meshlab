@@ -22,7 +22,12 @@
 ****************************************************************************/
 
 #include "filter_test_close_hole.h"
+
 #include <QtGui>
+#include <QMessageBox>
+#include <QGridLayout>
+#include <QSpacerItem>
+
 #include <tuple>
 #include <cmath>
 #include <numeric>
@@ -606,7 +611,9 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 		parlst.addParam(RichEnum("algo", 0, algoType, tr("Algorithm type"), tr("Choose the algorithm to close hole")));
         parlst.addParam(RichFloat("threshold", 0, "Threshold", "Set a threshold > 0 for filling hole step by step"));
         parlst.addParam(RichFloat("ratio", 0, "Ratio", "User test ratio for Z"));
+		// optional (not mention in proposed method)
         parlst.addParam(RichInt("maxholesize", int(0), "Max hole size", "Size of a hole is the number of boundary face of that hole"));
+		parlst.addParam(RichBool("selected", m.cm.sfn>0, "Close holes with selected faces", "Only the holes with at least one of the boundary faces selected are closed"));
 		parlst.addParam(RichBool("enableBorderColor", false, "Change color of border face and border vertex"));
 	}
 		break;
@@ -677,7 +684,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		}
 
 		std::vector<tri::Hole<CMeshO>::Info> vinfo;
-		bool Selected = false; // TODO: put in param
+		bool selected = par.getBool("selected"); 
 		std::vector<std::vector<CVertexO*>> vholeV;
 		int expandedVBit = CVertexO::NewBitFlag();
 		// int borderVBit = CVertexO::NewBitFlag();
@@ -687,7 +694,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 		std::vector<std::vector<int>> vHoleFaceIndex;
 
-        // vcg::tri::Hole<CMeshO>::GetInfo(cm, Selected, vinfo);
+        // vcg::tri::Hole<CMeshO>::GetInfo(cm, selected, vinfo);
 
 		tri::UpdateFlags<CMeshO>::FaceClearV(cm);
 
@@ -695,7 +702,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
         {
 			if(!(*fi).IsD())
 			{
-				if(Selected && !(*fi).IsS())
+				if(selected && !(*fi).IsS())
 				{
 					//if I have to consider only the selected triangles e
 					//what I'm considering isn't marking it and moving on
@@ -933,6 +940,10 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				break;
 			case 3:
 			{
+				QMessageBox msgBox;
+				msgBox.setText("Holes information");
+				QString text = "";
+
 				int count = 0;
 				for (std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float> hole: vholeInfo)
 				{
@@ -948,7 +959,14 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 					++count;
 					log("Hole number %i size %i average edge %f avg ratio %f", count, vVertIndex.size(), avgDistance, avgZRatio);
+					text.append(QString("Hole number %1 size %2 average edge %3 avg ratio %4 \n").arg(QString::number(count), QString::number(vVertIndex.size()), QString::number(avgDistance), QString::number(avgZRatio)));
 				}
+
+				msgBox.setInformativeText(text);
+				QSpacerItem* horizontalSpacer = new QSpacerItem(500, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+    			QGridLayout* layout = (QGridLayout*)msgBox.layout();
+    			layout->addItem(horizontalSpacer, layout->rowCount(), 0, 1, layout->columnCount());
+				msgBox.exec();
 			} break;
 			default:
 				assert(0);
