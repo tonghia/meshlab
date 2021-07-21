@@ -328,6 +328,19 @@ void fillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float rati
 	return;
 }
 
+float calcAvgDistanceToCenter(CMeshO& cm, std::vector<int> hole, Point3m centerPoint)
+{
+	float totalDistance = 0;
+	for (int i = 0; i < hole.size(); i++)
+	{
+		int index = hole[i];
+		float dCenter = distance2Points(cm.vert[index].P(), centerPoint);
+		totalDistance += dCenter;
+	}
+
+	return totalDistance / hole.size();
+}
+
 bool checkHoleSize(CMeshO& cm, std::vector<int> hole, float threshold, Point3m centerPoint)
 {
 	float totalDistance = 0;
@@ -349,7 +362,12 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool
 	}
 
     Point3m centerPoint = findHoleCenterPoint(cm, hole);
-    centerPoint.Z() = centerPoint.Z() * avgZRatio;
+
+	float avgCenterDistance = calcAvgDistanceToCenter(cm, hole, centerPoint);
+	float avgEdge = calcAvgHoleEdge(cm, hole);
+	float factor = avgCenterDistance / avgEdge;
+
+    centerPoint.Z() = centerPoint.Z() * pow(avgZRatio, factor);
     // centerPoint.Z() = centerPoint.Z() * pow(1.073515, (distance2Points(cm.vert[hole[0]].P(), centerPoint) / threshold));
     // centerPoint.Z() = centerPoint.Z() * testRatio;
 	// float startAvgEdge = calcAvgHoleEdge(cm, hole);
