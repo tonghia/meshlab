@@ -21,7 +21,8 @@ public:
 	enum {
 		TEST_ANYTHING,
 		TEST_FILL_COLOR,
-		TEST_FILL_FACE_COLOR
+		TEST_FILL_FACE_COLOR,
+		TEST_ROTATE
 	};
 
 	TestAnythingPlugin();
