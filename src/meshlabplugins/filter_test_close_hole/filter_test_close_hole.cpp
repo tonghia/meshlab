@@ -377,6 +377,12 @@ bool checkCurrPointEdgeOk(Point3m curFill, Point3m curBoundary, Point3m prevFill
 	return dCurr < dPrev;
 }
 
+bool checkNewPrevPointDistance(Point3m newFill, Point3m prevFill, float threshold) {
+	float d = distance2Points(newFill, prevFill);
+
+	return d > threshold;
+}
+
 void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vRatio, float avgZRatio)
 {
 	if (hole.size() == 0) 
@@ -408,18 +414,16 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool
 
 		// insert first point by using last boundary point
 		Point3m firstFillPoint = calcFillingPoint(cm.vert[hole.back()].P(), centerPoint, avgEdge, 1);
-		CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
+		CMeshO::VertexIterator firstFillV = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
 		N_LOG_FILL_VERT(QString("LogRatio During fill Border Vertex index %1 next index %2 coord (x, y, z): (%3, %4, %5) ratio %6 \n").arg(
-			QString::number(hole.back()), QString::number(vi->Index()), QString::number(cm.vert[hole.back()].P().X()), QString::number(cm.vert[hole.back()].P().Y()), 
+			QString::number(hole.back()), QString::number(firstFillV->Index()), QString::number(cm.vert[hole.back()].P().X()), QString::number(cm.vert[hole.back()].P().Y()), 
 			QString::number(cm.vert[hole.back()].P().Z()), QString::number(1)
 			));
-		// firstFillPoint.Z() = cm.vert[index].P().Z() * 1.073515;
-		vi->P() = firstFillPoint;
-		vi->C() = vcg::Color4b(0, 255, 255, 255);
+		firstFillV->P() = firstFillPoint;
+		firstFillV->C() = vcg::Color4b(0, 255, 255, 255);
 
 		int prevIndex = hole.back();
-		int prevFilledIndex = vi->Index();
-		int firstFilledIndex = vi->Index(); // TODO: remove
+		int prevFilledIndex = firstFillV->Index();
 		for (int i = 0; i < hole.size(); i++)
 		{
 			int index = hole[i];
@@ -427,31 +431,27 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool
 
 			Point3m fillPoint = calcFillingPoint(cm.vert[index].P(), centerPoint, avgEdge, 1);
 
-			// check last filled point in map to group near point
-			// if (prevFilledIndex != -1)
-			// {
-			// 	Point3m prevFillPoint = cm.vert[prevFilledIndex].P();
-			// 	if (distance2Points(prevFillPoint, fillPoint) < avgEdge/2)
-			// 	{
-			// 		// make average current and last filled point, should be avg of all component points
-			// 		// cm.vert[prevFilledIndex].P() = (prevFillPoint + fillPoint) / 2;
-			// 		vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, prevFilledIndex);
+			CMeshO::VertexIterator vi;
+			if (index != hole.back()) {
+				// add point to mesh
+				vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
+				qDebug("LogRatio During fill Border Vertex index %i next index %i coord (x, y, z): (%f, %f, %f) ratio %f \n", index, vi->Index(),
+					cm.vert[index].P().X(), cm.vert[index].P().Y(), cm.vert[index].P().Z(), ratio);
+				// fillPoint.Z() = cm.vert[index].P().Z() * 1.073515;
+				vi->P() = fillPoint;
+				vi->C() = vcg::Color4b(0, 255, 255, 255);
 
-			// 		prevIndex = index;
-			// 		reducedHole.push_back(index);
-
-			// 		continue;
-			// 	}
-			// }
-
-			// add point to mesh
-			CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
-			qDebug("LogRatio During fill Border Vertex index %i next index %i coord (x, y, z): (%f, %f, %f) ratio %f \n", index, vi->Index(),
-				cm.vert[index].P().X(), cm.vert[index].P().Y(), cm.vert[index].P().Z(), ratio);
-			// fillPoint.Z() = cm.vert[index].P().Z() * 1.073515;
-			vi->P() = fillPoint;
-			vi->C() = vcg::Color4b(0, 255, 255, 255);
-
+				// check distance with new and prev fill points
+				// if (!checkNewPrevPointDistance(fillPoint, cm.vert[prevFilledIndex].P(), threshold)) {
+				// 	vcg::tri::Allocator<CMeshO>::AddFace(cm, prevFilledIndex, index, prevIndex);
+				// 	prevIndex = index;
+				// 	cm.vert[index].C() = vcg::Color4b(255, 255, 0, 255);
+				// 	continue;
+				// }
+			} else {
+				vi = firstFillV;
+			}
+			
 			if (checkCurrPointEdgeOk(fillPoint, cm.vert[index].P(), cm.vert[prevFilledIndex].P(), cm.vert[prevIndex].P())) {
 				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, vi->Index());
 				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, prevFilledIndex, vi->Index());
