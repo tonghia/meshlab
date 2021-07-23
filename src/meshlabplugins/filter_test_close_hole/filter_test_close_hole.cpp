@@ -604,9 +604,9 @@ QString FilterFillHolePlugin::filterName(ActionIDType filterId) const
 	switch (filterId)
 	{
 	case FP_TEST_DP_CLOSE_HOLE:
-		return "surface fill hole";
+		return "Test ML close hole";
 	case FP_TEST_CLOSE_HOLE:
-		return "find mesh hole";
+		return "Close hole on mesh";
 	default:
 		return "";
 	}
@@ -623,9 +623,9 @@ QString FilterFillHolePlugin::filterInfo(ActionIDType filterId) const
 	switch (filterId)
 	{
 	case FP_TEST_DP_CLOSE_HOLE:
-		return "fill hole algo.";
+		return "Test close hole with Meshlab algorithm";
 	case FP_TEST_CLOSE_HOLE:
-		return "find hole algo.";
+		return "My research algorithm for close hole";
 	default:
 		return "Unknown Filter";
 	}
@@ -705,7 +705,7 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
         parlst.addParam(RichFloat("ratio", 0, "Ratio", "User test ratio for Z"));
 		// optional (not mention in proposed method)
         parlst.addParam(RichInt("maxholesize", int(0), "Max hole size", "Size of a hole is the number of boundary face of that hole"));
-		parlst.addParam(RichBool("selected", m.cm.sfn>0, "Close holes with selected faces", "Only the holes with at least one of the boundary faces selected are closed"));
+		parlst.addParam(RichBool("selected", m.cm.sfn>0, "Apply algorithm with selected faces", "Only the holes with at least one of the boundary faces selected are applied"));
 		parlst.addParam(RichBool("enableBorderColor", false, "Change color of border face and border vertex"));
 	}
 		break;
