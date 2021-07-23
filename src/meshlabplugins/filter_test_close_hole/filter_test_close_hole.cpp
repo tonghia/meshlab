@@ -67,6 +67,62 @@ const char* pointToString(Point3m p);
 int solveQuadraticEquation(float a, float b, float c,float &x1, float &x2);
 Point3m findHoleCenterPoint(CMeshO& cm, std::vector<int> hole);
 
+// rotate mesh
+void Freeze(MeshModel *m)
+{
+	tri::UpdatePosition<CMeshO>::Matrix(m->cm, m->cm.Tr,true);
+	tri::UpdateBounding<CMeshO>::Box(m->cm);
+	m->cm.shot.ApplyRigidTransformation(m->cm.Tr);
+	m->cm.Tr.SetIdentity();
+}
+
+void ApplyTransform(MeshDocument &md, const Matrix44m &tr, bool toAllFlag, bool freeze,
+					bool invertFlag=false, bool composeFlage=true)
+{
+	if(toAllFlag)
+	{
+		MeshModel   *m=NULL;
+		while ((m=md.nextVisibleMesh(m)))
+		{
+			if(invertFlag) m->cm.Tr = Inverse(m->cm.Tr);
+			if(composeFlage) m->cm.Tr = tr * m->cm.Tr;
+			else m->cm.Tr=tr;
+			if(freeze) Freeze(m);
+		}
+
+		for (int i = 0; i < md.rasterList.size(); i++)
+			if (md.rasterList[0]->visible)
+				md.rasterList[i]->shot.ApplyRigidTransformation(tr);
+	}
+	else
+	{
+		MeshModel   *m=md.mm();
+		if(invertFlag) m->cm.Tr = Inverse(m->cm.Tr);
+		if(composeFlage) m->cm.Tr = tr * m->cm.Tr;
+		else m->cm.Tr=tr;
+		if(freeze) Freeze(md.mm());
+	}
+}
+
+void rotateHoleCenter(MeshDocument &md, Point3m holeCenter) {
+	Matrix44m trRot, trTran, trTranInv, transfM;
+	// Point3m axis, tranVec;
+
+	Point3m tranVec(0, 0, 0); // suppose holeCenter is P(x, y, z) tranVec is vector OP 
+	Point3m zAxis(0, 0, 1);
+	Point3m tranAxis = holeCenter ^ zAxis; // tranAxis is cross product of OP and Oz axis
+
+	Scalarm angleRad= Angle(zAxis, holeCenter);
+	Scalarm angleDeg = angleRad * (180.0 / 3.141592653589793238463);
+
+	trRot.SetRotateDeg(angleDeg,tranAxis);
+	trTran.SetTranslate(tranVec);
+	trTranInv.SetTranslate(-tranVec);
+	transfM = trTran*trRot*trTranInv;
+
+	ApplyTransform(md, transfM, false, true);
+}
+
 // functions implementation
 float distance2Points(Point3m p1, Point3m p2) 
 {
@@ -275,6 +331,17 @@ float calcAvgHoleEdge(CMeshO& cm, std::vector<int> hole)
 	}
 
 	return d / hole.size();
+}
+
+Point3m calcHoleCenter(CMeshO& cm, std::vector<int> hole) {
+	Point3m centerP(0, 0, 0);
+	for (int idx: hole)
+	{
+		centerP += cm.vert[idx].P();
+	}
+	centerP /= hole.size();
+
+	return centerP;
 }
 
 void fillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float ratio)
@@ -517,7 +584,7 @@ FilterFillHolePlugin::FilterClass FilterFillHolePlugin::getClass(const QAction *
 {
 	switch (ID(a))
 	{
-	case FP_TEST_DP_CLOSE_HOLE: return FilterPlugin::Remeshing;
+	case FP_TEST_DP_CLOSE_HOLE: return FilterPlugin::NTest;
 	case FP_TEST_CLOSE_HOLE: return FilterPlugin::Remeshing;
 
 	default: assert(0); return FilterPlugin::Generic;
@@ -592,7 +659,7 @@ int FilterFillHolePlugin::postCondition(const QAction *action) const
 	case FP_TEST_DP_CLOSE_HOLE:
 		return MeshModel::MM_GEOMETRY_AND_TOPOLOGY_CHANGE;
 	case FP_TEST_CLOSE_HOLE:
-		return MeshModel::MM_GEOMETRY_AND_TOPOLOGY_CHANGE;
+		return MeshModel::MM_GEOMETRY_AND_TOPOLOGY_CHANGE + MeshModel::MM_TRANSFMATRIX;
 	}
 
 	return MeshModel::MM_ALL;
@@ -631,6 +698,7 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 		algoType.push_back("Ring by ring");
 		algoType.push_back("Center point");
 		algoType.push_back("Isosceles");
+		algoType.push_back("Rotate hole center");
 		algoType.push_back("Get hole information");
 		parlst.addParam(RichEnum("algo", 0, algoType, tr("Algorithm type"), tr("Choose the algorithm to close hole")));
         parlst.addParam(RichFloat("threshold", 0, "Threshold", "Set a threshold > 0 for filling hole step by step"));
@@ -712,7 +780,6 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		std::vector<std::vector<CVertexO*>> vholeV;
 		int expandedVBit = CVertexO::NewBitFlag();
 		// int borderVBit = CVertexO::NewBitFlag();
-		int borderSharedBit = 15;
         std::vector<std::vector<int>> vholeI;
         std::vector<std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float>> vholeInfo;
 
@@ -780,12 +847,12 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 									// Set corlor of border face, vertex
                                     // sp.f->C().SetHSVColor(0, 1.0f, 1.0f);
 									// Set corlor of extended boundary
-									sp.v->SetUserBit(borderSharedBit);
+									sp.v->SetUserBit(expandedVBit);
                                     CVertexO* expandedFP = sp.f->V2(sp.z);
 
 									totalZ += sp.v->P().Z();
 									++countZ;
-									if (!expandedFP->IsUserBit(borderSharedBit)) {
+									if (!expandedFP->IsUserBit(expandedVBit)) {
 										// expandedFP->C() = vcg::Color4b(255, 255, 0, 255);
 										totalExpandZ += expandedFP->P().Z();
 										++countExpandZ;
@@ -963,6 +1030,25 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 			}
 				break;
 			case 3:
+			{
+				for (std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float> hole: vholeInfo)
+				{
+					std::vector<int> vVertIndex;
+					std::vector<float> vDistance;
+					std::vector<float> vRatio;
+					float avgZRatio;
+					tie(vVertIndex, vDistance, vRatio, avgZRatio) = hole;
+                    if (maxHoleSize > 0 && vVertIndex.size() > maxHoleSize) {
+						continue;
+					}
+					float avgDistance = calcAvgDistance(vDistance);
+
+					Point3m holeCenter = calcHoleCenter(cm, vVertIndex);
+					rotateHoleCenter(md, holeCenter);
+				}
+			}
+			break;
+			case 4:
 			{
 				QMessageBox msgBox;
 				msgBox.setText("Holes information");
