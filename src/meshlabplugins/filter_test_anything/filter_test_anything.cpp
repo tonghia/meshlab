@@ -56,7 +56,8 @@ TestAnythingPlugin::TestAnythingPlugin()
 		TEST_ANYTHING,
 		TEST_FILL_COLOR,
 		TEST_FILL_FACE_COLOR,
-		TEST_ROTATE
+		TEST_ROTATE,
+		TEST_ROTATE_ONCE
 	};
 
 	for(ActionIDType tt : types()) {
@@ -82,6 +83,8 @@ QString TestAnythingPlugin::filterName(ActionIDType filter) const
 		return QString("Test Fill Face Color");
 	case TEST_ROTATE:
 		return QString("Test Rotate Mesh");
+	case TEST_ROTATE_ONCE:
+		return QString("Test Rotate Once");
 	}
 	return QString("Unknown filter");
 }
@@ -98,6 +101,8 @@ QString TestAnythingPlugin::filterInfo(ActionIDType filterId) const
 		return tr("Test fill face color");
 	case TEST_ROTATE:
 		return tr("Test rotate mesh");
+	case TEST_ROTATE_ONCE:
+		return tr("Test rotate once");
 	}
 	return QString("Unknown Filter");
 }
@@ -113,6 +118,8 @@ TestAnythingPlugin::FilterClass TestAnythingPlugin::getClass(const QAction *acti
 	case TEST_FILL_FACE_COLOR:
 		return FilterClass(FilterPlugin::NTest);
 	case TEST_ROTATE:
+		return FilterClass(FilterPlugin::NTest);
+	case TEST_ROTATE_ONCE:
 		return FilterClass(FilterPlugin::NTest);
 	default:
 		assert(0);
@@ -158,6 +165,10 @@ void TestAnythingPlugin::initParameterList(const QAction *action, MeshModel &m, 
 			parlst.addParam(RichBool ("Freeze",true,"Freeze Matrix","The transformation is explicitly applied, and the vertex coordinates are actually changed"));
 			parlst.addParam(RichBool ("allLayers",false,"Apply to all visible Layers","If selected the filter will be applied to all visible mesh layers"));
 
+			break;
+		}
+		case TEST_ROTATE_ONCE:
+		{
 			break;
 		}
 	default:
@@ -257,6 +268,27 @@ std::map<std::string, QVariant> TestAnythingPlugin::applyFilter(
 
 			break;
 		}
+		case TEST_ROTATE_ONCE:
+		{
+			Point3m holeCenter(1, 1, 1);
+			Matrix44m trRot, trTran, trTranInv, transfM;
+			// Point3m axis, tranVec;
+
+			Point3m tranVec(0, 0, 0); // suppose holeCenter is P(x, y, z) tranVec is vector OP 
+			Point3m zAxis(0, 0, 1);
+			Point3m tranAxis = holeCenter ^ zAxis; // tranAxis is cross product of OP and Oz axis
+
+			Scalarm angleRad= Angle(zAxis, holeCenter);
+			Scalarm angleDeg = angleRad * (180.0 / 3.141592653589793238463);
+
+			trRot.SetRotateDeg(angleDeg,tranAxis);
+			trTran.SetTranslate(tranVec);
+			trTranInv.SetTranslate(-tranVec);
+			transfM = trTran*trRot*trTranInv;
+
+			ApplyTransform(md, transfM, false, true);
+			break;
+		}
 	}
 
 	return outputValues;
@@ -274,6 +306,8 @@ QString TestAnythingPlugin::filterScriptFunctionName(ActionIDType filterID)
 		return QString("TestFillFaceColor");
 	case TEST_ROTATE:
 		return QString("TestRotate");
+	case TEST_ROTATE_ONCE:
+		return QString("TestRotateOnce");
 	default:
 		assert(0);
 	}
@@ -292,6 +326,8 @@ int TestAnythingPlugin::getRequirements(const QAction *action)
 		return MeshModel::MM_NONE;
 	case TEST_ROTATE:
 		return MeshModel::MM_NONE;
+	case TEST_ROTATE_ONCE:
+		return MeshModel::MM_NONE;
 	default:
 		return 0;
 	}
@@ -308,6 +344,8 @@ int TestAnythingPlugin::postCondition(const QAction *action) const
 	case TEST_FILL_FACE_COLOR:
 		return MeshModel::MM_NONE;
 	case TEST_ROTATE:
+		return MeshModel::MM_TRANSFMATRIX;
+	case TEST_ROTATE_ONCE:
 		return MeshModel::MM_TRANSFMATRIX;
 	default:
 		return MeshModel::MM_UNKNOWN;
@@ -326,6 +364,8 @@ int TestAnythingPlugin::getPreConditions(QAction *action) const
 		return MeshModel::MM_NONE;
 	case TEST_ROTATE:
 		return MeshModel::MM_NONE;
+	case TEST_ROTATE_ONCE:
+		return MeshModel::MM_NONE;
 	default:
 		return 0;
 	}
@@ -342,6 +382,8 @@ FilterPlugin::FilterArity TestAnythingPlugin::filterArity(const QAction *filter)
 		case TEST_FILL_FACE_COLOR:
 			return FilterPlugin::SINGLE_MESH;
 		case TEST_ROTATE:
+			return FilterPlugin::SINGLE_MESH;
+		case TEST_ROTATE_ONCE:
 			return FilterPlugin::SINGLE_MESH;
 	}
 
