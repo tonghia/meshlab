@@ -450,6 +450,35 @@ bool checkNewPrevPointDistance(Point3m newFill, Point3m prevFill, float threshol
 	return d > threshold;
 }
 
+float calcCenterRatio(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<float> vratio) {
+	// 1. each boundary - ratio, check distance to center d, factor to center = d/avgEdge, rounded factor
+	// 2. only get min rounded factor, total factor, count factor
+	// 3. average of 2 is result
+	int count = 0;
+	float totalRatio = 0;
+	int minFactor = 59999;
+	for (int i = 0; i < hole.size(); i++) {
+		int bindex = hole[i];
+		Point3m bvertex = cm.vert[bindex].P();
+		float ratio = vratio[i];
+
+		float d = distance2Points(bvertex, center);
+		float factor = d / avgEdge;
+		int roundFactor = round(factor);
+
+		if (roundFactor < minFactor) {
+			minFactor = roundFactor;
+			totalRatio = ratio;
+			count = 1;
+		} else {
+			totalRatio += ratio;
+			++count;
+		}
+	}
+
+    return pow(totalRatio / count, minFactor);
+}
+
 void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vRatio, float avgZRatio)
 {
 	if (hole.size() == 0) 
@@ -463,7 +492,9 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool
 	float avgEdge = calcAvgHoleEdge(cm, hole);
 	float factor = avgCenterDistance / avgEdge;
 
-    centerPoint.Z() = centerPoint.Z() * pow(avgZRatio, factor);
+	float centerRatio = calcCenterRatio(cm, centerPoint, avgEdge, hole, vRatio);
+    centerPoint.Z() = centerPoint.Z() * centerRatio;
+    // centerPoint.Z() = centerPoint.Z() * pow(avgZRatio, factor);
     // centerPoint.Z() = centerPoint.Z() * pow(1.073515, (distance2Points(cm.vert[hole[0]].P(), centerPoint) / threshold));
     // centerPoint.Z() = centerPoint.Z() * testRatio;
 	// float startAvgEdge = calcAvgHoleEdge(cm, hole);
@@ -488,6 +519,7 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool
 			));
 		firstFillV->P() = firstFillPoint;
 		firstFillV->C() = vcg::Color4b(0, 255, 255, 255);
+		int firstFillIndex = firstFillV->Index();
 
 		int prevIndex = hole.back();
 		int prevFilledIndex = firstFillV->Index();
@@ -497,6 +529,7 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool
 			float ratio = vRatio[i]; // TODO: remove
 
 			Point3m fillPoint = calcFillingPoint(cm.vert[index].P(), centerPoint, avgEdge, 1);
+			int fillIndex = -1;
 
 			CMeshO::VertexIterator vi;
 			if (index != hole.back()) {
@@ -507,6 +540,7 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool
 				// fillPoint.Z() = cm.vert[index].P().Z() * 1.073515;
 				vi->P() = fillPoint;
 				vi->C() = vcg::Color4b(0, 255, 255, 255);
+				fillIndex = vi->Index();
 
 				// check distance with new and prev fill points
 				// if (!checkNewPrevPointDistance(fillPoint, cm.vert[prevFilledIndex].P(), threshold)) {
@@ -516,21 +550,21 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool
 				// 	continue;
 				// }
 			} else {
-				vi = firstFillV;
+				fillIndex = firstFillIndex;
 			}
 			
 			if (checkCurrPointEdgeOk(fillPoint, cm.vert[index].P(), cm.vert[prevFilledIndex].P(), cm.vert[prevIndex].P())) {
-				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, vi->Index());
-				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, prevFilledIndex, vi->Index());
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, fillIndex);
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, prevFilledIndex, fillIndex);
 			} else {
 				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, prevFilledIndex);
-				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevFilledIndex, index, vi->Index());
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevFilledIndex, index, fillIndex);
 			}
 
-			reducedHole.push_back(vi->Index());
+			reducedHole.push_back(fillIndex);
 
 			prevIndex = index;
-			prevFilledIndex = vi->Index();
+			prevFilledIndex = fillIndex;
 		}
 
 		hole = reducedHole;
@@ -766,9 +800,10 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 	}
 	case FP_TEST_CLOSE_HOLE:
 	{
+		m.updateDataMask(MeshModel::MM_FACECOLOR);
 		m.updateDataMask(MeshModel::MM_FACEFACETOPO);
 		m.updateDataMask(MeshModel::MM_VERTCOLOR);
-		m.updateDataMask(MeshModel::MM_FACECOLOR);
+		m.updateDataMask(MeshModel::MM_VERTFACETOPO);
 
 		CMeshO & cm = m.cm;
 		if (tri::Clean<CMeshO>::CountNonManifoldEdgeFF(m.cm) > 0)
@@ -785,8 +820,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 		std::vector<tri::Hole<CMeshO>::Info> vinfo;
 		std::vector<std::vector<CVertexO*>> vholeV;
+		int borderVBit = CVertexO::NewBitFlag();
 		int expandedVBit = CVertexO::NewBitFlag();
-		// int borderVBit = CVertexO::NewBitFlag();
         std::vector<std::vector<int>> vholeI;
         std::vector<std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float>> vholeInfo;
 
@@ -798,130 +833,132 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
         for(tri::Hole<CMeshO>::FaceIterator fi = cm.face.begin(); fi!=cm.face.end(); ++fi)
         {
-			if(!(*fi).IsD())
+			if((*fi).IsD())
 			{
-				if(selected && !(*fi).IsS())
-				{
-					//if I have to consider only the selected triangles e
-					//what I'm considering isn't marking it and moving on
+				continue;
+			}
+
+			if(selected && !(*fi).IsS())
+			{
+				//if I have to consider only the selected triangles e
+				//what I'm considering isn't marking it and moving on
+				(*fi).SetV();
+				continue;
+			}
+
+			for(int j =0; j<3 ; ++j)
+			{
+				if( face::IsBorder(*fi,j) && !(*fi).IsV() )
+				{//Found a board face not yet visited.
 					(*fi).SetV();
-				}
-				else
-				{
-						for(int j =0; j<3 ; ++j)
+					tri::Hole<CMeshO>::PosType sp(&*fi, j, (*fi).V(j));
+					tri::Hole<CMeshO>::PosType fp=sp;
+					int holesize=0;
+
+					// (*fi).C() = vcg::Color4b(255, 0, 255, 255);
+					// CVertexO* v1 = (*fi).V(j);
+					// (*v1).C() = vcg::Color4b(255, 0, 255, 255);
+					// CVertexO* v2 = (*fi).V((j + 1) % 3);
+					// (*v2).C() = vcg::Color4b(255, 0, 255, 255);
+
+					qDebug("Hole %i detected \n", vinfo.size() + 1);
+					std::vector<CVertexO*> vBorderVertex;
+					std::vector<int> vBorderIndex;
+					std::vector<float> vDistanceVert;
+					std::vector<float> vRatio;
+					float totalZ = 0;
+					int countZ = 0;
+					float totalExpandZ = 0;
+					int countExpandZ = 0;
+					Point3m prevPoint = sp.v->P();
+					bool hasPrevP = true;
+					std::vector<int> vFaceIndex;					
+					float ratio = 0;
+					float totalRatio = 0;
+					int countRatio = 0;
+
+					tri::Hole<CMeshO>::Box3Type hbox;
+					hbox.Add(sp.v->cP());
+
+					sp.f->SetV();
+					do
+					{
+						sp.f->SetV();
+						hbox.Add(sp.v->cP());
+						++holesize;
+						sp.NextB();
+						sp.f->SetV();
+
+						// Set corlor of border face, vertex
+						// sp.f->C().SetHSVColor(0, 1.0f, 1.0f);
+						// Set corlor of extended boundary
+						sp.v->SetUserBit(borderVBit);
+						CVertexO* expandedFP = sp.f->V2(sp.z);
+
+						totalZ += sp.v->P().Z();
+						++countZ;
+						if (!expandedFP->IsUserBit(expandedVBit)) {
+							// expandedFP->C() = vcg::Color4b(255, 255, 0, 255);
+							totalExpandZ += expandedFP->P().Z();
+							++countExpandZ;
+						}
+
+						qDebug("LogRatio Border Vertex index %i coord (x, y, z): (%f, %f, %f) index %d \n", 
+							sp.v->Index(), sp.v->P().X(), sp.v->P().Y(), sp.v->P().Z(), sp.v->Index());
+						qDebug("LogRatio Extended Vertex index %i coord (x, y, z): (%f, %f, %f) index %d \n", 
+							expandedFP->Index(), expandedFP->P().X(), expandedFP->P().Y(), expandedFP->P().Z(), expandedFP->Index());
+						ratio =  sp.v->P().Z() / expandedFP->P().Z();
+						qDebug("LogRatio Ratio %f \n", ratio);
+						++countRatio;
+						totalRatio += ratio;
+
+						if (ratio < 1) {
+							// sp.v->C() = vcg::Color4b(255, 0, 255, 255);
+							// expandedFP->C() = vcg::Color4b(255, 255, 0, 255);
+						}
+
+						int vIndex = sp.v->Index();
+
+						// qDebug("Border Vertex index %i coord (x, y, z): (%f, %f, %f) \n", vIndex, sp.v->P().X(), sp.v->P().Y(), sp.v->P().Z());
+						vBorderVertex.push_back(sp.v);
+						vBorderIndex.push_back(sp.v->Index());
+						vRatio.push_back(ratio);
+						vFaceIndex.push_back(sp.f->Index());
+
+						if (!hasPrevP) 
 						{
-							if( face::IsBorder(*fi,j) && !(*fi).IsV() )
-							{//Found a board face not yet visited.
-                                (*fi).SetV();
-								tri::Hole<CMeshO>::PosType sp(&*fi, j, (*fi).V(j));
-								tri::Hole<CMeshO>::PosType fp=sp;
-								int holesize=0;
+							hasPrevP = true;
+							prevPoint = sp.v->P();
+						} else {
+							float d = distance2Points(sp.v->P(), prevPoint);
+							assert(d);
+							vDistanceVert.push_back(d);
+							// set prevP after calc distance
+							prevPoint = sp.v->P();
+						}
 
-                                // (*fi).C() = vcg::Color4b(255, 0, 255, 255);
-								// CVertexO* v1 = (*fi).V(j);
-								// (*v1).C() = vcg::Color4b(255, 0, 255, 255);
-								// CVertexO* v2 = (*fi).V((j + 1) % 3);
-								// (*v2).C() = vcg::Color4b(255, 0, 255, 255);
+						assert(sp.IsBorder());
+					}while(sp != fp);
 
-								qDebug("Hole %i detected \n", vinfo.size() + 1);
-								std::vector<CVertexO*> vBorderVertex;
-								std::vector<int> vBorderIndex;
-								std::vector<float> vDistanceVert;
-								std::vector<float> vRatio;
-								float totalZ = 0;
-								int countZ = 0;
-								float totalExpandZ = 0;
-								int countExpandZ = 0;
-								Point3m prevPoint = sp.v->P();
-								bool hasPrevP = true;
-								std::vector<int> vFaceIndex;					
-								float ratio = 0;
-								float totalRatio = 0;
-								int countRatio = 0;
+					// vDistanceVert.push_back(distance2Points(sp.v->P(), prevPoint));
+					log("Ratio %f", totalRatio / countRatio);
 
-								tri::Hole<CMeshO>::Box3Type hbox;
-								hbox.Add(sp.v->cP());
-								//printf("Looping %i : (face %i edge %i) \n", VHI.size(),sp.f-&*m.face.begin(),sp.z);
-								sp.f->SetV();
-								do
-								{
-									sp.f->SetV();
-									hbox.Add(sp.v->cP());
-									++holesize;
-									sp.NextB();
-									sp.f->SetV();
+					qDebug("End hole point log");
+					vholeV.push_back(vBorderVertex);
+					vholeI.push_back(vBorderIndex);
+					float averageZRatio = (totalZ/countZ) / (totalExpandZ/countExpandZ);
+					if (averageZRatio != averageZRatio) {
+						averageZRatio = 1;
+					}
+					// assert(averageZRatio == averageZRatio);
+					vholeInfo.push_back(std::make_tuple(vBorderIndex, vDistanceVert, vRatio, averageZRatio));
+					vHoleFaceIndex.push_back(vFaceIndex);
 
-									// Set corlor of border face, vertex
-                                    // sp.f->C().SetHSVColor(0, 1.0f, 1.0f);
-									// Set corlor of extended boundary
-									sp.v->SetUserBit(expandedVBit);
-                                    CVertexO* expandedFP = sp.f->V2(sp.z);
+					//I recovered the information on the whole hole
+					vinfo.push_back( tri::Hole<CMeshO>::Info(sp,holesize,hbox) );
+				}
+			}//for on the edges of the triangle
 
-									totalZ += sp.v->P().Z();
-									++countZ;
-									if (!expandedFP->IsUserBit(expandedVBit)) {
-										// expandedFP->C() = vcg::Color4b(255, 255, 0, 255);
-										totalExpandZ += expandedFP->P().Z();
-										++countExpandZ;
-									}
-
-									qDebug("LogRatio Border Vertex index %i coord (x, y, z): (%f, %f, %f) index %d \n", 
-										sp.v->Index(), sp.v->P().X(), sp.v->P().Y(), sp.v->P().Z(), sp.v->Index());
-									qDebug("LogRatio Extended Vertex index %i coord (x, y, z): (%f, %f, %f) index %d \n", 
-										expandedFP->Index(), expandedFP->P().X(), expandedFP->P().Y(), expandedFP->P().Z(), expandedFP->Index());
-									ratio =  sp.v->P().Z() / expandedFP->P().Z();
-									qDebug("LogRatio Ratio %f \n", ratio);
-									++countRatio;
-									totalRatio += ratio;
-
-									if (ratio < 1) {
-										// sp.v->C() = vcg::Color4b(255, 0, 255, 255);
-										// expandedFP->C() = vcg::Color4b(255, 255, 0, 255);
-									}
-
-									int vIndex = sp.v->Index();
-
-                                	// qDebug("Border Vertex index %i coord (x, y, z): (%f, %f, %f) \n", vIndex, sp.v->P().X(), sp.v->P().Y(), sp.v->P().Z());
-									vBorderVertex.push_back(sp.v);
-									vBorderIndex.push_back(sp.v->Index());
-									vRatio.push_back(ratio);
-									vFaceIndex.push_back(sp.f->Index());
-
-									if (!hasPrevP) 
-									{
-										hasPrevP = true;
-										prevPoint = sp.v->P();
-                                    } else {
-                                        float d = distance2Points(sp.v->P(), prevPoint);
-										assert(d);
-                                        vDistanceVert.push_back(d);
-										// set prevP after calc distance
-										prevPoint = sp.v->P();
-									}
-
-									assert(sp.IsBorder());
-								}while(sp != fp);
-
-								// vDistanceVert.push_back(distance2Points(sp.v->P(), prevPoint));
-								log("Ratio %f", totalRatio / countRatio);
-
-								qDebug("End hole point log");
-								vholeV.push_back(vBorderVertex);
-								vholeI.push_back(vBorderIndex);
-								float averageZRatio = (totalZ/countZ) / (totalExpandZ/countExpandZ);
-								if (averageZRatio != averageZRatio) {
-									averageZRatio = 1;
-								}
-								// assert(averageZRatio == averageZRatio);
-                                vholeInfo.push_back(std::make_tuple(vBorderIndex, vDistanceVert, vRatio, averageZRatio));
-								vHoleFaceIndex.push_back(vFaceIndex);
-
-								//I recovered the information on the whole hole
-                                vinfo.push_back( tri::Hole<CMeshO>::Info(sp,holesize,hbox) );
-							}
-						}//for on the edges of the triangle
-				}//S & !S
-			}//!IsD()
 		}//for principale!!!
 
 		if (enableBorderColor)
