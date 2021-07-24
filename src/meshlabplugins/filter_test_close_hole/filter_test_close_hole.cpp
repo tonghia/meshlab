@@ -769,14 +769,21 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		m.updateDataMask(MeshModel::MM_FACEFACETOPO);
 		m.updateDataMask(MeshModel::MM_VERTCOLOR);
 		m.updateDataMask(MeshModel::MM_FACECOLOR);
+
 		CMeshO & cm = m.cm;
 		if (tri::Clean<CMeshO>::CountNonManifoldEdgeFF(m.cm) > 0)
 		{
 			throw MLException("Mesh has some not 2-manifold edges, filter requires edge manifoldness");
 		}
 
-		std::vector<tri::Hole<CMeshO>::Info> vinfo;
+		// get parameters
+		bool enableBorderColor = par.getBool("enableBorderColor");
+		float threshold = par.getFloat("threshold");
+		float userRatio = par.getFloat("ratio");
+        float maxHoleSize = par.getInt("maxholesize");
 		bool selected = par.getBool("selected"); 
+
+		std::vector<tri::Hole<CMeshO>::Info> vinfo;
 		std::vector<std::vector<CVertexO*>> vholeV;
 		int expandedVBit = CVertexO::NewBitFlag();
 		// int borderVBit = CVertexO::NewBitFlag();
@@ -917,10 +924,6 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 			}//!IsD()
 		}//for principale!!!
 
-		bool enableBorderColor = par.getBool("enableBorderColor");
-		float threshold = par.getFloat("threshold");
-		float userRatio = par.getFloat("ratio");
-        float maxHoleSize = par.getInt("maxholesize");
 		if (enableBorderColor)
 		{
             for (std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float> hole: vholeInfo)
@@ -973,9 +976,15 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					std::vector<float> vRatio;
 					float avgZRatio;
 					tie(vVertIndex, vDistance, vRatio, avgZRatio) = hole;
+
                     if (maxHoleSize > 0 && vVertIndex.size() > maxHoleSize) {
 						continue;
 					}
+
+					// rotate the hole center to z-axis
+					Point3m holeCenter = calcHoleCenter(cm, vVertIndex);
+					rotateHoleCenter(md, holeCenter);
+
 					float avgDistance = calcAvgDistance(vDistance);
 					if (threshold <= 0) {
                         threshold = avgDistance/2;
@@ -1000,6 +1009,11 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 						continue;
 					}
 
+					// rotate the hole center to z-axis
+					Point3m holeCenter = calcHoleCenter(cm, hole);
+					rotateHoleCenter(md, holeCenter);
+
+					// fill hole
                     fillHoleByCenter(cm, hole, 0, 1);
 				}
 			} // end case 1
