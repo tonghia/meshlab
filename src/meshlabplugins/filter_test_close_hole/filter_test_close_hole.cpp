@@ -400,6 +400,71 @@ void fillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float rati
 	return;
 }
 
+void fillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, float ratio) {
+	if (hole.size() <= 3) {
+        return;
+    }
+
+	Point3m centerP(0, 0, 0);
+	float maxZ = cm.vert[hole[0]].P().Z();
+	for (int idx: hole)
+	{
+		centerP += cm.vert[idx].P();
+		qDebug("point x, y, z, index %i (%f, %f, %f)", cm.vert[idx].Index(), cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z());
+		if (cm.vert[idx].P().Z() > maxZ) {
+			maxZ = cm.vert[idx].P().Z();
+		}
+	}
+	centerP /= hole.size();
+	qDebug("hole center point x, y, z (%f, %f, %f) \n\n", centerP.X(), centerP.Y(), centerP.Z());
+
+	CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
+	int centerIdx = vi->Index();
+	// centerP.Z() = centerP.Z() * ratio;
+	centerP.Z() = maxZ;
+	vi->P() = centerP;
+	vi->C() = vcg::Color4b(0, 255, 255, 255);
+	// CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertex(cm, centerP);
+
+	int prevI = -1;
+	int firstI = -1;
+	for (int i = 0; i < hole.size() - 1; i++)
+	{
+		int idx = hole[i];
+
+		int firstIdx = hole[i];
+		int secondIdx = hole[(i + 1) % hole.size()];
+		int thirdIdx = hole[(i + 2) % hole.size()];
+
+		float d13 = distance2Points(cm.vert[firstIdx].P(), cm.vert[thirdIdx].P());
+		float d1c = distance2Points(cm.vert[firstIdx].P(), centerP);
+		float d2c = distance2Points(cm.vert[secondIdx].P(), centerP);
+
+		if (d13 < d2c && d2c > d1c) {
+			// add face 13c, 123; i++
+			vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, thirdIdx, centerIdx);
+			vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, secondIdx, thirdIdx);
+
+			++i;
+			
+			if (i == hole.size() - 2) {
+				// add face 3c & first
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, hole[0], thirdIdx, centerIdx);
+			}
+		} else {
+			// add face 12c; continue
+			vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, secondIdx, centerIdx);
+
+			if (i == hole.size() - 2) {
+				// add face 23c
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, secondIdx, thirdIdx, centerIdx);
+			}
+		}
+	}
+
+	return;
+}
+
 float calcAvgDistanceToCenter(CMeshO& cm, std::vector<int> hole, Point3m centerPoint)
 {
 	float totalDistance = 0;
@@ -477,6 +542,97 @@ float calcCenterRatio(CMeshO& cm, Point3m center, float avgEdge, std::vector<int
 	}
 
     return pow(totalRatio / count, minFactor);
+}
+
+int findStepToCenter(Point3m center, Point3m boundary, float avgEdge) {
+	float d = distance2Points(center, boundary);
+	int step = round(d / avgEdge);
+	
+	return step;
+}
+
+int findMaxStepToCenter(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole) {
+	int maxStep = 0;
+	for (int index: hole) {
+		Point3m boundary = cm.vert[index].P();
+		int step = findStepToCenter(center, boundary, avgEdge);
+		if (step > maxStep) {
+			maxStep = step;
+		}
+	}
+
+	return maxStep;
+}
+
+std::vector<int> rearrangeHole(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole) {
+	int k = findMaxStepToCenter(cm, center, avgEdge, hole);
+	int f = 0;
+	std::vector<int> rearrange;
+
+	for (int i = 0; i < hole.size(); ++i) {
+        int index = hole[i];
+		Point3m boundary = cm.vert[index].P();
+		int step = findStepToCenter(center, boundary, avgEdge);
+		if (step == k) {
+			f = i;
+			break;
+		}
+	}
+	for (int i = k + 1; i < hole.size(); ++i) {
+		rearrange.push_back(hole[i]);
+	}
+	for (int i = 0; i <= k; ++i) {
+		rearrange.push_back(hole[i]);
+	}
+
+	return rearrange;
+}
+
+std::vector<int> reduceHoleByConnectNearby(CMeshO& cm, std::vector<int> hole, float avgEdge, Point3m center) {
+	std::vector<int> cHole = hole;
+	bool complete = false;
+	// std::vector<int> reducedHole;
+
+	do {
+		if (cHole.size() <= 3) {
+			break;
+		}
+
+		complete = true;
+		// reducedHole.clear();
+		for (int i = 0; i < cHole.size() - 2; i++) {
+			int firstIndex = cHole[i];
+			int secondIndex = cHole[i+1];
+			int thirdIndex = cHole[i+2];
+			if (i == cHole.size() - 1) {
+				secondIndex = cHole[0];
+				thirdIndex = cHole[1];
+			}
+			Point3m firstPoint = cm.vert[firstIndex].P();
+			Point3m secondPoint = cm.vert[secondIndex].P();
+			Point3m thirdPoint = cm.vert[thirdIndex].P();
+			Point3m mid13Point = (firstPoint + thirdPoint) / 2;
+			float dSecond = distance2Points(secondPoint, center);
+			float dMid13 = distance2Points(mid13Point, center);
+			float d13 = distance2Points(firstPoint, thirdPoint);
+			if (d13 < avgEdge && dMid13 < dSecond) {
+				// add face
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIndex, secondIndex, thirdIndex);
+				cm.face.back().C() = vcg::Color4b::Red;
+				// NOTE: mutate the hole
+                auto it = cHole.begin() + i + 1;
+				cHole.erase(it);
+				complete = false;
+				// reducedHole.push_back(secondIndex);
+				break;
+			} 
+			
+			// reducedHole.push_back(firstIndex);
+		}
+	} while(!complete);
+
+	// return reducedHole;
+	return cHole;
 }
 
 void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vRatio, float avgZRatio)
@@ -559,6 +715,153 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool
 			} else {
 				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, prevFilledIndex);
 				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevFilledIndex, index, fillIndex);
+			}
+
+			reducedHole.push_back(fillIndex);
+
+			prevIndex = index;
+			prevFilledIndex = fillIndex;
+		}
+
+		hole = reducedHole;
+
+		if (stepByStep) {
+			break;
+		}
+	}
+	
+	return;
+}
+
+void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vRatio, float avgZRatio)
+{
+	if (hole.size() == 0) 
+	{
+		return;
+	}
+
+    Point3m centerPoint = findHoleCenterPoint(cm, hole);
+
+	float avgCenterDistance = calcAvgDistanceToCenter(cm, hole, centerPoint);
+	float startAvgEdge = calcAvgHoleEdge(cm, hole);
+	float factor = avgCenterDistance / startAvgEdge;
+
+	float centerRatio = calcCenterRatio(cm, centerPoint, startAvgEdge, hole, vRatio);
+    centerPoint.Z() = centerPoint.Z() * centerRatio;
+    // centerPoint.Z() = centerPoint.Z() * pow(avgZRatio, factor);
+    // centerPoint.Z() = centerPoint.Z() * pow(1.073515, (distance2Points(cm.vert[hole[0]].P(), centerPoint) / threshold));
+    // centerPoint.Z() = centerPoint.Z() * testRatio;
+	// float startAvgEdge = calcAvgHoleEdge(cm, hole);
+
+	while (true)
+	{
+		// Point3m centerPoint = findHoleCenterPoint(cm, hole);
+		// float startAvgEdge = calcAvgHoleEdge(cm, hole);
+		// float centerRatio = calcCenterRatio(cm, centerPoint, startAvgEdge, hole, vRatio);
+    	// centerPoint.Z() = centerPoint.Z() * centerRatio;
+
+		hole = reduceHoleByConnectNearby(cm, hole, threshold, centerPoint);
+		hole = rearrangeHole(cm, centerPoint, startAvgEdge, hole);
+
+		float avgEdge = calcAvgHoleEdge(cm, hole);
+		
+		// init check step to center
+		int maxStepCenter = findMaxStepToCenter(cm, centerPoint, avgEdge, hole);
+		
+		// if (avgEdge < threshold)
+		if (checkHoleSize(cm, hole, threshold, centerPoint) || avgEdge < threshold)
+		{
+			// fillHoleByCenter(cm, hole, avgEdge, 1);
+			fillHoleByCenterRefined(cm, hole, avgEdge, 1);
+			break;
+		}
+
+		std::vector<int> reducedHole;
+
+		// insert first point by using last boundary point
+		Point3m firstFillPoint = calcFillingPoint(cm.vert[hole.back()].P(), centerPoint, avgEdge, 1);
+		CMeshO::VertexIterator firstFillV = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
+		N_LOG_FILL_VERT(QString("LogRatio During fill Border Vertex index %1 next index %2 coord (x, y, z): (%3, %4, %5) ratio %6 \n").arg(
+			QString::number(hole.back()), QString::number(firstFillV->Index()), QString::number(cm.vert[hole.back()].P().X()), QString::number(cm.vert[hole.back()].P().Y()), 
+			QString::number(cm.vert[hole.back()].P().Z()), QString::number(1)
+			));
+		firstFillV->P() = firstFillPoint;
+		firstFillV->C() = vcg::Color4b(0, 255, 255, 255);
+		int firstFillIndex = firstFillV->Index();
+
+		int prevIndex = hole.back();
+		int prevFilledIndex = firstFillV->Index();
+		bool skipPrev = false;
+		for (int i = 0; i < hole.size(); i++)
+		{
+			int index = hole[i];
+			float ratio = vRatio[i]; // TODO: remove
+
+			Point3m fillPoint = calcFillingPoint(cm.vert[index].P(), centerPoint, avgEdge, 1);
+			int fillIndex = -1;
+
+			// check step to center
+			int stepCenter = findStepToCenter(centerPoint, cm.vert[index].P(), avgEdge);
+			assert(stepCenter <= maxStepCenter);
+			if (stepCenter < maxStepCenter) {
+				// reducedHole.push_back(index);
+				if (skipPrev) {
+					prevFilledIndex = prevIndex;
+				} else {
+					vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, prevFilledIndex);
+					cm.face.back().C() = vcg::Color4b::Yellow;
+				}
+				prevIndex = index;
+				skipPrev = true;
+
+				if (index == hole.back()) {
+					vcg::tri::Allocator<CMeshO>::AddFace(cm, firstFillIndex, index, prevFilledIndex);
+					reducedHole.push_back(firstFillIndex);
+				} else {
+					reducedHole.push_back(index);
+				}
+
+				continue;
+			}
+
+			// fill new point
+			CMeshO::VertexIterator vi;
+			if (index != hole.back()) {
+				// add point to mesh
+				vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
+				qDebug("LogRatio During fill Border Vertex index %i next index %i coord (x, y, z): (%f, %f, %f) ratio %f \n", index, vi->Index(),
+					cm.vert[index].P().X(), cm.vert[index].P().Y(), cm.vert[index].P().Z(), ratio);
+				// fillPoint.Z() = cm.vert[index].P().Z() * 1.073515;
+				vi->P() = fillPoint;
+				vi->C() = vcg::Color4b(0, 255, 255, 255);
+				fillIndex = vi->Index();
+
+				// check distance with new and prev fill points
+				// if (!checkNewPrevPointDistance(fillPoint, cm.vert[prevFilledIndex].P(), threshold)) {
+				// 	vcg::tri::Allocator<CMeshO>::AddFace(cm, prevFilledIndex, index, prevIndex);
+				// 	prevIndex = index;
+				// 	cm.vert[index].C() = vcg::Color4b(255, 255, 0, 255);
+				// 	continue;
+				// }
+			} else {
+				fillIndex = firstFillIndex;
+			}
+			
+			if (checkCurrPointEdgeOk(fillPoint, cm.vert[index].P(), cm.vert[prevFilledIndex].P(), cm.vert[prevIndex].P())) {
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, fillIndex);
+				cm.face.back().C() = vcg::Color4b::Green;
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, prevFilledIndex, fillIndex);
+				cm.face.back().C() = vcg::Color4b::Green;
+			} else {
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, prevFilledIndex);
+				cm.face.back().C() = vcg::Color4b::Magenta;
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevFilledIndex, index, fillIndex);
+				cm.face.back().C() = vcg::Color4b::Magenta;
+			}
+
+			if (skipPrev) {
+				reducedHole.pop_back();
+				skipPrev = false;
 			}
 
 			reducedHole.push_back(fillIndex);
@@ -729,6 +1032,7 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 	case FP_TEST_CLOSE_HOLE:
 	{
 		QStringList algoType;
+		algoType.push_back("Ring by ring with refinement");
 		algoType.push_back("Ring by ring");
 		algoType.push_back("Center point");
 		algoType.push_back("Isosceles");
@@ -1001,7 +1305,40 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		bool stepByStep = true;
 		switch(par.getEnum("algo"))
 		{
-			case 0:
+			case 0: {
+				for (std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float> hole: vholeInfo) {
+					std::vector<int> vVertIndex;
+					std::vector<float> vDistance;
+					std::vector<float> vRatio;
+					float avgZRatio;
+					tie(vVertIndex, vDistance, vRatio, avgZRatio) = hole;
+
+                    if (maxHoleSize > 0 && vVertIndex.size() > maxHoleSize) {
+						continue;
+					}
+
+					// rotate the hole center to z-axis
+					Point3m holeCenter = calcHoleCenter(cm, vVertIndex);
+					rotateHoleCenter(md, holeCenter);
+
+					float avgDistance = calcAvgDistance(vDistance);
+					if (threshold <= 0) {
+                        threshold = avgDistance/2;
+						stepByStep = false;
+					}
+					if (userRatio > 0) {
+						avgZRatio = userRatio;
+					}
+					qDebug("start one hole filling with threshold %f", threshold);
+
+					fillHoleRingByRingRefined(cm, vVertIndex, threshold, stepByStep, vRatio, avgZRatio);
+
+					qDebug("End one hole filling");
+				}
+
+				break;
+			}
+			case 1:
 			{
 				// 1. calc average edge as threshold
 				// 2. add new points which in the line to center
@@ -1038,7 +1375,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				}
 			}
 				break;
-			case 1: 
+			case 2: 
 			{
 				for (std::vector<int> hole: vholeI) 
 				{
@@ -1055,7 +1392,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				}
 			} // end case 1
 				break;
-			case 2: 
+			case 3: 
 			{
 				// 1. calculate average distance
 				// 2. add points by new average distance
@@ -1080,7 +1417,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 			}
 				break;
-			case 3:
+			case 4:
 			{
 				for (std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float> hole: vholeInfo)
 				{
@@ -1099,7 +1436,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				}
 			}
 			break;
-			case 4:
+			case 5:
 			{
 				QMessageBox msgBox;
 				msgBox.setText("Holes information");
