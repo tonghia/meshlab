@@ -30,6 +30,7 @@
 #include <QSpacerItem>
 
 #include <tuple>
+#include <cmath>
 
 #include <vcg/complex/algorithms/hole.h>
 #include <vcg/space/color4.h>
@@ -400,8 +401,6 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					bool hasPrevP = true;
 					std::vector<int> vFaceIndex;					
 					float ratio = 0;
-					float totalRatio = 0;
-					int countRatio = 0;
 
 					tri::Hole<CMeshO>::Box3Type hbox;
 					hbox.Add(sp.v->cP());
@@ -433,22 +432,22 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 							sp.v->Index(), sp.v->P().X(), sp.v->P().Y(), sp.v->P().Z(), sp.v->Index());
 						qDebug("LogRatio Extended Vertex index %i coord (x, y, z): (%f, %f, %f) index %d \n", 
 							expandedFP->Index(), expandedFP->P().X(), expandedFP->P().Y(), expandedFP->P().Z(), expandedFP->Index());
-						ratio =  sp.v->P().Z() / expandedFP->P().Z();
+						// ratio =  sp.v->P().Z() / expandedFP->P().Z();
 						qDebug("LogRatio Ratio %f \n", ratio);
-						++countRatio;
-						totalRatio += ratio;
 
-						if (ratio < 1) {
+
+						// if (ratio < 1) {
 							// sp.v->C() = vcg::Color4b(255, 0, 255, 255);
 							// expandedFP->C() = vcg::Color4b(255, 255, 0, 255);
-						}
+						// }
+						float zChange = sp.v->P().Z() - expandedFP->P().Z();
 
 						int vIndex = sp.v->Index();
 
 						// qDebug("Border Vertex index %i coord (x, y, z): (%f, %f, %f) \n", vIndex, sp.v->P().X(), sp.v->P().Y(), sp.v->P().Z());
 						vBorderVertex.push_back(sp.v);
 						vBorderIndex.push_back(sp.v->Index());
-						vRatio.push_back(ratio);
+						vRatio.push_back(zChange);
 						vFaceIndex.push_back(sp.f->Index());
 
 						if (!hasPrevP) 
@@ -467,7 +466,6 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					}while(sp != fp);
 
 					// vDistanceVert.push_back(distance2Points(sp.v->P(), prevPoint));
-					log("Ratio %f", totalRatio / countRatio);
 
 					qDebug("End hole point log");
 					vholeV.push_back(vBorderVertex);

@@ -424,12 +424,12 @@ float calcCenterRatio(CMeshO& cm, Point3m center, float avgEdge, std::vector<int
 	// 2. only get min rounded factor, total factor, count factor
 	// 3. average of 2 is result
 	int count = 0;
-	float totalRatio = 0;
+	float totalZChange = 0;
 	int minFactor = 59999;
 	for (int i = 0; i < hole.size(); i++) {
 		int bindex = hole[i];
 		Point3m bvertex = cm.vert[bindex].P();
-		float ratio = vratio[i];
+		float zChange = vratio[i];
 
 		float d = distance2Points(bvertex, center);
 		float factor = d / avgEdge;
@@ -437,15 +437,15 @@ float calcCenterRatio(CMeshO& cm, Point3m center, float avgEdge, std::vector<int
 
 		if (roundFactor < minFactor) {
 			minFactor = roundFactor;
-			totalRatio = ratio;
+			totalZChange = zChange;
 			count = 1;
 		} else {
-			totalRatio += ratio;
+			totalZChange += zChange;
 			++count;
 		}
 	}
 
-    return pow(totalRatio / count, minFactor);
+    return (totalZChange / count) * minFactor;
 }
 
 int findStepToCenter(Point3m center, Point3m boundary, float avgEdge) {
@@ -470,7 +470,7 @@ int findMaxStepToCenter(CMeshO& cm, Point3m center, float avgEdge, std::vector<i
 
 std::vector<int> rearrangeHole(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole) {
 	int k = findMaxStepToCenter(cm, center, avgEdge, hole);
-	int f = 0;
+	int maxStepIndex = 0;
 	std::vector<int> rearrange;
 
 	for (int i = 0; i < hole.size(); ++i) {
@@ -478,14 +478,14 @@ std::vector<int> rearrangeHole(CMeshO& cm, Point3m center, float avgEdge, std::v
 		Point3m boundary = cm.vert[index].P();
 		int step = findStepToCenter(center, boundary, avgEdge);
 		if (step == k) {
-			f = i;
+			maxStepIndex = i;
 			break;
 		}
 	}
-	for (int i = k + 1; i < hole.size(); ++i) {
+	for (int i = maxStepIndex + 1; i < hole.size(); ++i) {
 		rearrange.push_back(hole[i]);
 	}
-	for (int i = 0; i <= k; ++i) {
+	for (int i = 0; i <= maxStepIndex; ++i) {
 		rearrange.push_back(hole[i]);
 	}
 
@@ -552,8 +552,8 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool
 	float avgEdge = calcAvgHoleEdge(cm, hole);
 	float factor = avgCenterDistance / avgEdge;
 
-	float centerRatio = calcCenterRatio(cm, centerPoint, avgEdge, hole, vRatio);
-    centerPoint.Z() = centerPoint.Z() * centerRatio;
+    float centerZChange = calcCenterRatio(cm, centerPoint, avgEdge, hole, vRatio);
+    centerPoint.Z() = centerPoint.Z() + centerZChange;
     // centerPoint.Z() = centerPoint.Z() * pow(avgZRatio, factor);
     // centerPoint.Z() = centerPoint.Z() * pow(1.073515, (distance2Points(cm.vert[hole[0]].P(), centerPoint) / threshold));
     // centerPoint.Z() = centerPoint.Z() * testRatio;
@@ -650,8 +650,8 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 	float startAvgEdge = calcAvgHoleEdge(cm, hole);
 	float factor = avgCenterDistance / startAvgEdge;
 
-	float centerRatio = calcCenterRatio(cm, centerPoint, startAvgEdge, hole, vRatio);
-    centerPoint.Z() = centerPoint.Z() * centerRatio;
+	float centerZChange = calcCenterRatio(cm, centerPoint, startAvgEdge, hole, vRatio);
+    centerPoint.Z() = centerPoint.Z() + centerZChange;
     // centerPoint.Z() = centerPoint.Z() * pow(avgZRatio, factor);
     // centerPoint.Z() = centerPoint.Z() * pow(1.073515, (distance2Points(cm.vert[hole[0]].P(), centerPoint) / threshold));
     // centerPoint.Z() = centerPoint.Z() * testRatio;
