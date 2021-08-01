@@ -347,21 +347,25 @@ void fillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, flo
 		if (d13 < d2c && d2c > d1c) {
 			// add face 13c, 123; i++
 			vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, thirdIdx, centerIdx);
+			cm.face.back().C() = vcg::Color4b::Gray;
 			vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, secondIdx, thirdIdx);
+			cm.face.back().C() = vcg::Color4b::Gray;
 
 			++i;
 			
 			if (i == hole.size() - 2) {
 				// add face 3c & first
 				vcg::tri::Allocator<CMeshO>::AddFace(cm, hole[0], thirdIdx, centerIdx);
+				cm.face.back().C() = vcg::Color4b::Gray;
 			}
 		} else {
 			// add face 12c; continue
 			vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, secondIdx, centerIdx);
-
+			cm.face.back().C() = vcg::Color4b::Gray;
 			if (i == hole.size() - 2) {
 				// add face 23c
 				vcg::tri::Allocator<CMeshO>::AddFace(cm, secondIdx, thirdIdx, centerIdx);
+				cm.face.back().C() = vcg::Color4b::Gray;
 			}
 		}
 	}
@@ -720,6 +724,7 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 
 				if (index == hole.back()) {
 					vcg::tri::Allocator<CMeshO>::AddFace(cm, firstFillIndex, index, prevFilledIndex);
+					cm.face.back().C() = vcg::Color4b::Yellow;
 					reducedHole.push_back(firstFillIndex);
 				} else {
 					reducedHole.push_back(index);
@@ -758,9 +763,9 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 				cm.face.back().C() = vcg::Color4b::Green;
 			} else {
 				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, prevFilledIndex);
-				cm.face.back().C() = vcg::Color4b::Magenta;
+				cm.face.back().C() = vcg::Color4b::Green;
 				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevFilledIndex, index, fillIndex);
-				cm.face.back().C() = vcg::Color4b::Magenta;
+				cm.face.back().C() = vcg::Color4b::Green;
 			}
 
 			if (skipPrev) {
