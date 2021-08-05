@@ -304,28 +304,36 @@ void fillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float rati
 	return;
 }
 
-void fillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, float ratio) {
+int chooseEdgeNearAvg(float d1, float d2, float avgd) {
+    assert(d1 > 0 && d2 > 0 && avgd > 0);
+	float diff1 = abs(d1 - avgd);
+	float diff2 = abs(d2 - avgd);
+	
+	return diff1 > diff2 ? 1 : 2;
+}
+
+void fillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, float ratio, Point3m centerP) {
 	if (hole.size() <= 3) {
         return;
     }
 
-	Point3m centerP(0, 0, 0);
-	float maxZ = cm.vert[hole[0]].P().Z();
-	for (int idx: hole)
-	{
-		centerP += cm.vert[idx].P();
-		qDebug("point x, y, z, index %i (%f, %f, %f)", cm.vert[idx].Index(), cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z());
-		if (cm.vert[idx].P().Z() > maxZ) {
-			maxZ = cm.vert[idx].P().Z();
-		}
-	}
-	centerP /= hole.size();
+	// Point3m centerP(0, 0, 0);
+	// float maxZ = cm.vert[hole[0]].P().Z();
+	// for (int idx: hole)
+	// {
+	// 	centerP += cm.vert[idx].P();
+	// 	qDebug("point x, y, z, index %i (%f, %f, %f)", cm.vert[idx].Index(), cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z());
+	// 	if (cm.vert[idx].P().Z() > maxZ) {
+	// 		maxZ = cm.vert[idx].P().Z();
+	// 	}
+	// }
+	// centerP /= hole.size();
 	qDebug("hole center point x, y, z (%f, %f, %f) \n\n", centerP.X(), centerP.Y(), centerP.Z());
 
 	CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
 	int centerIdx = vi->Index();
 	// centerP.Z() = centerP.Z() * ratio;
-	centerP.Z() = maxZ;
+	// centerP.Z() = maxZ;
 	vi->P() = centerP;
 	vi->C() = vcg::Color4b(0, 255, 255, 255);
 	// CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertex(cm, centerP);
@@ -344,7 +352,10 @@ void fillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, flo
 		float d1c = distance2Points(cm.vert[firstIdx].P(), centerP);
 		float d2c = distance2Points(cm.vert[secondIdx].P(), centerP);
 
-		if (d13 < d2c && d2c > d1c) {
+		float d21 = distance2Points(cm.vert[secondIdx].P(), cm.vert[firstIdx].P());
+		float d23 = distance2Points(cm.vert[secondIdx].P(), cm.vert[thirdIdx].P());
+
+		if (d13 < d2c && d2c > d1c && (d13 < d21*1.2 || d13 < d23*1.2)) {
 			// add face 13c, 123; i++
 			vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, thirdIdx, centerIdx);
 			cm.face.back().C() = vcg::Color4b::Gray;
@@ -423,7 +434,7 @@ bool checkNewPrevPointDistance(Point3m newFill, Point3m prevFill, float threshol
 	return d > threshold;
 }
 
-float calcCenterRatio(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<float> vratio) {
+float calcCenterZChange(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<float> vratio) {
 	// 1. each boundary - ratio, check distance to center d, factor to center = d/avgEdge, rounded factor
 	// 2. only get min rounded factor, total factor, count factor
 	// 3. average of 2 is result
@@ -523,7 +534,11 @@ std::vector<int> reduceHoleByConnectNearby(CMeshO& cm, std::vector<int> hole, fl
 			float dSecond = distance2Points(secondPoint, center);
 			float dMid13 = distance2Points(mid13Point, center);
 			float d13 = distance2Points(firstPoint, thirdPoint);
-			if (d13 < avgEdge && dMid13 < dSecond) {
+
+			float d21 = distance2Points(secondPoint, firstPoint);
+			float d23 = distance2Points(secondPoint, thirdPoint);
+
+			if (d13 < avgEdge && dSecond > avgEdge && dMid13 < dSecond && (d13 < d21*1.2 || d13 < d23*1.2)) {
 				// add face
 				vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIndex, secondIndex, thirdIndex);
 				cm.face.back().C() = vcg::Color4b::Red;
@@ -556,11 +571,8 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool
 	float avgEdge = CalcAvgHoleEdge(cm, hole);
 	float factor = avgCenterDistance / avgEdge;
 
-    float centerZChange = calcCenterRatio(cm, centerPoint, avgEdge, hole, vRatio);
+    float centerZChange = calcCenterZChange(cm, centerPoint, avgEdge, hole, vRatio);
     centerPoint.Z() = centerPoint.Z() + centerZChange;
-    // centerPoint.Z() = centerPoint.Z() * pow(avgZRatio, factor);
-    // centerPoint.Z() = centerPoint.Z() * pow(1.073515, (distance2Points(cm.vert[hole[0]].P(), centerPoint) / threshold));
-    // centerPoint.Z() = centerPoint.Z() * testRatio;
 	// float startAvgEdge = CalcAvgHoleEdge(cm, hole);
 
 	while (true)
@@ -654,19 +666,14 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 	float startAvgEdge = CalcAvgHoleEdge(cm, hole);
 	float factor = avgCenterDistance / startAvgEdge;
 
-	float centerZChange = calcCenterRatio(cm, centerPoint, startAvgEdge, hole, vRatio);
+	float centerZChange = calcCenterZChange(cm, centerPoint, startAvgEdge, hole, vRatio);
     centerPoint.Z() = centerPoint.Z() + centerZChange;
-    // centerPoint.Z() = centerPoint.Z() * pow(avgZRatio, factor);
-    // centerPoint.Z() = centerPoint.Z() * pow(1.073515, (distance2Points(cm.vert[hole[0]].P(), centerPoint) / threshold));
-    // centerPoint.Z() = centerPoint.Z() * testRatio;
-	// float startAvgEdge = CalcAvgHoleEdge(cm, hole);
 
 	while (true)
 	{
 		// Point3m centerPoint = findHoleCenterPoint(cm, hole);
-		// float startAvgEdge = CalcAvgHoleEdge(cm, hole);
-		// float centerRatio = calcCenterRatio(cm, centerPoint, startAvgEdge, hole, vRatio);
-    	// centerPoint.Z() = centerPoint.Z() * centerRatio;
+		// float centerZChange = calcCenterZChange(cm, centerPoint, startAvgEdge, hole, vRatio);
+    	// centerPoint.Z() = centerPoint.Z() + centerZChange;
 
 		hole = reduceHoleByConnectNearby(cm, hole, threshold, centerPoint);
 		hole = rearrangeHole(cm, centerPoint, startAvgEdge, hole);
@@ -677,10 +684,10 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 		int maxStepCenter = findMaxStepToCenter(cm, centerPoint, avgEdge, hole);
 		
 		// if (avgEdge < threshold)
-		if (checkHoleSize(cm, hole, threshold, centerPoint) || avgEdge < threshold)
+		if (checkHoleSize(cm, hole, threshold, centerPoint) || maxStepCenter <= 1)
 		{
 			// fillHoleByCenter(cm, hole, avgEdge, 1);
-			fillHoleByCenterRefined(cm, hole, avgEdge, 1);
+			fillHoleByCenterRefined(cm, hole, avgEdge, 1, centerPoint);
 			break;
 		}
 

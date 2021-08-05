@@ -273,12 +273,13 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 		algoType.push_back("Rotate hole center");
 		algoType.push_back("Get hole information");
 		parlst.addParam(RichEnum("algo", 0, algoType, tr("Algorithm type"), tr("Choose the algorithm to close hole")));
-        parlst.addParam(RichFloat("threshold", 0, "Threshold", "Set a threshold > 0 for filling hole step by step"));
-        parlst.addParam(RichFloat("ratio", 0, "Ratio", "User test ratio for Z"));
+        parlst.addParam(RichFloat("expect_edge_length", 0, "Expected edge length", "If value = 0 then expected edge length is the average hole edges"));
+        parlst.addParam(RichFloat("threshold_ratio", 1.0, "Threhold ratio", "Threshold = Threhold ratio * Expected edge length"));
 		// optional flags
-        parlst.addParam(RichInt("maxholesize", int(0), "Max hole size", "Size of a hole is the number of boundary face of that hole"));
+        parlst.addParam(RichInt("max_hole_size", int(0), "Max hole size", "Size of a hole is the number of boundary face of that hole"));
 		parlst.addParam(RichBool("selected", m.cm.sfn>0, "Apply algorithm with selected faces", "Only the holes with at least one of the boundary faces selected are applied"));
-		parlst.addParam(RichBool("enableBorderColor", false, "Change color of border face and border vertex"));
+		parlst.addParam(RichBool("one_ring", false, "Apply algorithm to fill one ring only", "Fill the hole one ring to the center"));
+		parlst.addParam(RichBool("enable_border_color", false, "Change color of border face and border vertex"));
 	}
 		break;
 	default:
@@ -350,11 +351,12 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		}
 
 		// get parameters
-		bool enableBorderColor = par.getBool("enableBorderColor");
-		float threshold = par.getFloat("threshold");
-		float userRatio = par.getFloat("ratio");
-        float maxHoleSize = par.getInt("maxholesize");
+		bool enableBorderColor = par.getBool("enable_border_color");
+		float expectedEdgeLength = par.getFloat("expect_edge_length");
+		float thresholdRatio = par.getFloat("threshold_ratio");
+        float maxHoleSize = par.getInt("max_hole_size");
 		bool selected = par.getBool("selected"); 
+		bool isOneRing = par.getBool("one_ring");
 
 		std::vector<tri::Hole<CMeshO>::Info> vinfo;
 		int borderVBit = CVertexO::NewBitFlag();
@@ -553,17 +555,18 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					// rotate the hole center to z-axis
 					Matrix44m transMt = rotateHoleCenter(md, holeCenter);
 
-					float avgDistance = CalcAvgHoleEdge(cm, vVertIndex);
-					if (threshold <= 0) {
-                        threshold = avgDistance/2;
-						stepByStep = false;
+					float edgeLength = expectedEdgeLength;
+					if (edgeLength <= 0) {
+						edgeLength = CalcAvgHoleEdge(cm, vVertIndex);
 					}
-					if (userRatio > 0) {
-						avgZRatio = userRatio;
-					}
-					qDebug("start one hole filling with threshold %f", threshold);
+					float holeThreshold = edgeLength * thresholdRatio;
+					if (holeThreshold <= 0) {
+                        holeThreshold = edgeLength;
+					} 
+					bool stepByStep = isOneRing;
+					qDebug("start one hole filling with threshold %f", holeThreshold);
 
-					fillHoleRingByRingRefined(cm, vVertIndex, threshold, stepByStep, vZChange, avgZRatio);
+					fillHoleRingByRingRefined(cm, vVertIndex, holeThreshold, stepByStep, vZChange, avgZRatio);
 
 					qDebug("End one hole filling");
 					// revert the rotation
@@ -591,21 +594,24 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 					// rotate the hole center to z-axis
 					Point3m holeCenter = calcHoleCenter(cm, vVertIndex);
-					rotateHoleCenter(md, holeCenter);
+					Matrix44m transMt = rotateHoleCenter(md, holeCenter);
 
-					float avgDistance = calcAvgDistance(vDistance);
-					if (threshold <= 0) {
-                        threshold = avgDistance/2;
-						stepByStep = false;
+					float edgeLength = expectedEdgeLength;
+					if (edgeLength <= 0) {
+						edgeLength = CalcAvgHoleEdge(cm, vVertIndex);
 					}
-					if (userRatio > 0) {
-						avgZRatio = userRatio;
-					}
-					qDebug("start one hole filling with threshold %f", threshold);
+					float holeThreshold = edgeLength * thresholdRatio;
+					if (holeThreshold <= 0) {
+                        holeThreshold = edgeLength;
+					} 
+					bool stepByStep = isOneRing;
+					qDebug("start one hole filling with threshold %f", holeThreshold);
 
-					fillHoleRingByRing(cm, vVertIndex, threshold, stepByStep, vRatio, avgZRatio);
+					fillHoleRingByRing(cm, vVertIndex, holeThreshold, stepByStep, vRatio, avgZRatio);
 
 					qDebug("End one hole filling");
+					// revert the rotation
+					rotateInverse(md, transMt);
 				}
 			}
 				break;
