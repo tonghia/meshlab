@@ -88,7 +88,7 @@ void ApplyTransform(MeshDocument &md, const Matrix44m &tr, bool toAllFlag, bool 
 	}
 }
 
-void rotateHoleCenter(MeshDocument &md, Point3m holeCenter) {
+Matrix44m rotateHoleCenter(MeshDocument &md, Point3m holeCenter) {
 	Matrix44m trRot, trTran, trTranInv, transfM;
 	// Point3m axis, tranVec;
 
@@ -105,6 +105,13 @@ void rotateHoleCenter(MeshDocument &md, Point3m holeCenter) {
 	transfM = trTran*trRot*trTranInv;
 
 	ApplyTransform(md, transfM, false, true);
+	return transfM;
+}
+
+void rotateInverse(MeshDocument &md, Matrix44m mt) {
+	Matrix44m imt = Inverse(mt);
+
+	ApplyTransform(md, imt, false, true);
 }
 
 // end extra functions
@@ -542,9 +549,9 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 						continue;
 					}
 
-					// rotate the hole center to z-axis
 					Point3m holeCenter = calcHoleCenter(cm, vVertIndex);
-					rotateHoleCenter(md, holeCenter);
+					// rotate the hole center to z-axis
+					Matrix44m transMt = rotateHoleCenter(md, holeCenter);
 
 					float avgDistance = CalcAvgHoleEdge(cm, vVertIndex);
 					if (threshold <= 0) {
@@ -559,6 +566,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					fillHoleRingByRingRefined(cm, vVertIndex, threshold, stepByStep, vZChange, avgZRatio);
 
 					qDebug("End one hole filling");
+					// revert the rotation
+					rotateInverse(md, transMt);
 				}
 
 				break;
