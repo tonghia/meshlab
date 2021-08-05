@@ -45,7 +45,11 @@
 using namespace std;
 using namespace vcg;
 
-// our extra functions
+// our logic
+struct HoleVertInfo {
+	std::vector<int> vHoleVertIndex;
+	std::vector<float> vZChange;
+};
 
 // rotate mesh
 void Freeze(MeshModel *m)
@@ -264,7 +268,7 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 		parlst.addParam(RichEnum("algo", 0, algoType, tr("Algorithm type"), tr("Choose the algorithm to close hole")));
         parlst.addParam(RichFloat("threshold", 0, "Threshold", "Set a threshold > 0 for filling hole step by step"));
         parlst.addParam(RichFloat("ratio", 0, "Ratio", "User test ratio for Z"));
-		// optional (not mention in proposed method)
+		// optional flags
         parlst.addParam(RichInt("maxholesize", int(0), "Max hole size", "Size of a hole is the number of boundary face of that hole"));
 		parlst.addParam(RichBool("selected", m.cm.sfn>0, "Apply algorithm with selected faces", "Only the holes with at least one of the boundary faces selected are applied"));
 		parlst.addParam(RichBool("enableBorderColor", false, "Change color of border face and border vertex"));
@@ -346,16 +350,15 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		bool selected = par.getBool("selected"); 
 
 		std::vector<tri::Hole<CMeshO>::Info> vinfo;
-		std::vector<std::vector<CVertexO*>> vholeV;
 		int borderVBit = CVertexO::NewBitFlag();
 		int expandedVBit = CVertexO::NewBitFlag();
         std::vector<std::vector<int>> vholeI;
         std::vector<std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float>> vholeInfo;
+		std::vector<HoleVertInfo> vHoleVertInfo;
 
 		std::vector<std::vector<int>> vHoleFaceIndex;
 
-        // vcg::tri::Hole<CMeshO>::GetInfo(cm, selected, vinfo);
-
+		// clear Visited flag for all face in mesh
 		tri::UpdateFlags<CMeshO>::FaceClearV(cm);
 
         for(tri::Hole<CMeshO>::FaceIterator fi = cm.face.begin(); fi!=cm.face.end(); ++fi)
@@ -401,6 +404,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					bool hasPrevP = true;
 					std::vector<int> vFaceIndex;					
 					float ratio = 0;
+					HoleVertInfo vertInfo;
 
 					tri::Hole<CMeshO>::Box3Type hbox;
 					hbox.Add(sp.v->cP());
@@ -449,6 +453,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 						vBorderIndex.push_back(sp.v->Index());
 						vRatio.push_back(zChange);
 						vFaceIndex.push_back(sp.f->Index());
+						vertInfo.vHoleVertIndex.push_back(sp.v->Index());
+						vertInfo.vZChange.push_back(zChange);
 
 						if (!hasPrevP) 
 						{
@@ -468,12 +474,12 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					// vDistanceVert.push_back(distance2Points(sp.v->P(), prevPoint));
 
 					qDebug("End hole point log");
-					vholeV.push_back(vBorderVertex);
 					vholeI.push_back(vBorderIndex);
 					float averageZRatio = (totalZ/countZ) / (totalExpandZ/countExpandZ);
 					if (averageZRatio != averageZRatio) {
 						averageZRatio = 1;
 					}
+					vHoleVertInfo.push_back(vertInfo);
 					// assert(averageZRatio == averageZRatio);
 					vholeInfo.push_back(std::make_tuple(vBorderIndex, vDistanceVert, vRatio, averageZRatio));
 					vHoleFaceIndex.push_back(vFaceIndex);
@@ -481,9 +487,9 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					//I recovered the information on the whole hole
 					vinfo.push_back( tri::Hole<CMeshO>::Info(sp,holesize,hbox) );
 				}
-			}//for on the edges of the triangle
+			}//end for edges of the triangle
 
-		}//for principale!!!
+		}//end for faces of the mesh!!!
 
 		if (enableBorderColor)
 		{
@@ -526,12 +532,11 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		switch(par.getEnum("algo"))
 		{
 			case 0: {
-				for (std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float> hole: vholeInfo) {
-					std::vector<int> vVertIndex;
-					std::vector<float> vDistance;
-					std::vector<float> vRatio;
-					float avgZRatio;
-					tie(vVertIndex, vDistance, vRatio, avgZRatio) = hole;
+				for (HoleVertInfo hole: vHoleVertInfo) {
+
+					std::vector<int> vVertIndex = hole.vHoleVertIndex;
+                    std::vector<float> vZChange = hole.vZChange;
+					float avgZRatio = 1.0;
 
                     if (maxHoleSize > 0 && vVertIndex.size() > maxHoleSize) {
 						continue;
@@ -541,7 +546,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					Point3m holeCenter = calcHoleCenter(cm, vVertIndex);
 					rotateHoleCenter(md, holeCenter);
 
-					float avgDistance = calcAvgDistance(vDistance);
+					float avgDistance = CalcAvgHoleEdge(cm, vVertIndex);
 					if (threshold <= 0) {
                         threshold = avgDistance/2;
 						stepByStep = false;
@@ -551,7 +556,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					}
 					qDebug("start one hole filling with threshold %f", threshold);
 
-					fillHoleRingByRingRefined(cm, vVertIndex, threshold, stepByStep, vRatio, avgZRatio);
+					fillHoleRingByRingRefined(cm, vVertIndex, threshold, stepByStep, vZChange, avgZRatio);
 
 					qDebug("End one hole filling");
 				}

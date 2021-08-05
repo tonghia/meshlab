@@ -217,7 +217,7 @@ Point3m findHoleCenterPoint(CMeshO& cm, std::vector<int> hole)
 	return centerPoint / hole.size();
 }
 
-float calcAvgHoleEdge(CMeshO& cm, std::vector<int> hole)
+float CalcAvgHoleEdge(CMeshO& cm, std::vector<int> hole)
 {
 	if (hole.size() == 0) 
 	{
@@ -553,7 +553,7 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool
     Point3m centerPoint = findHoleCenterPoint(cm, hole);
 
 	float avgCenterDistance = calcAvgDistanceToCenter(cm, hole, centerPoint);
-	float avgEdge = calcAvgHoleEdge(cm, hole);
+	float avgEdge = CalcAvgHoleEdge(cm, hole);
 	float factor = avgCenterDistance / avgEdge;
 
     float centerZChange = calcCenterRatio(cm, centerPoint, avgEdge, hole, vRatio);
@@ -561,11 +561,11 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool
     // centerPoint.Z() = centerPoint.Z() * pow(avgZRatio, factor);
     // centerPoint.Z() = centerPoint.Z() * pow(1.073515, (distance2Points(cm.vert[hole[0]].P(), centerPoint) / threshold));
     // centerPoint.Z() = centerPoint.Z() * testRatio;
-	// float startAvgEdge = calcAvgHoleEdge(cm, hole);
+	// float startAvgEdge = CalcAvgHoleEdge(cm, hole);
 
 	while (true)
 	{
-		float avgEdge = calcAvgHoleEdge(cm, hole);
+		float avgEdge = CalcAvgHoleEdge(cm, hole);
 		// if (avgEdge < threshold)
 		if (checkHoleSize(cm, hole, threshold, centerPoint) || avgEdge < threshold)
 		{
@@ -651,7 +651,7 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
     Point3m centerPoint = findHoleCenterPoint(cm, hole);
 
 	float avgCenterDistance = calcAvgDistanceToCenter(cm, hole, centerPoint);
-	float startAvgEdge = calcAvgHoleEdge(cm, hole);
+	float startAvgEdge = CalcAvgHoleEdge(cm, hole);
 	float factor = avgCenterDistance / startAvgEdge;
 
 	float centerZChange = calcCenterRatio(cm, centerPoint, startAvgEdge, hole, vRatio);
@@ -659,19 +659,19 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
     // centerPoint.Z() = centerPoint.Z() * pow(avgZRatio, factor);
     // centerPoint.Z() = centerPoint.Z() * pow(1.073515, (distance2Points(cm.vert[hole[0]].P(), centerPoint) / threshold));
     // centerPoint.Z() = centerPoint.Z() * testRatio;
-	// float startAvgEdge = calcAvgHoleEdge(cm, hole);
+	// float startAvgEdge = CalcAvgHoleEdge(cm, hole);
 
 	while (true)
 	{
 		// Point3m centerPoint = findHoleCenterPoint(cm, hole);
-		// float startAvgEdge = calcAvgHoleEdge(cm, hole);
+		// float startAvgEdge = CalcAvgHoleEdge(cm, hole);
 		// float centerRatio = calcCenterRatio(cm, centerPoint, startAvgEdge, hole, vRatio);
     	// centerPoint.Z() = centerPoint.Z() * centerRatio;
 
 		hole = reduceHoleByConnectNearby(cm, hole, threshold, centerPoint);
 		hole = rearrangeHole(cm, centerPoint, startAvgEdge, hole);
 
-		float avgEdge = calcAvgHoleEdge(cm, hole);
+		float avgEdge = CalcAvgHoleEdge(cm, hole);
 		
 		// init check step to center
 		int maxStepCenter = findMaxStepToCenter(cm, centerPoint, avgEdge, hole);
