@@ -48,6 +48,8 @@ using namespace vcg;
 // our logic
 struct HoleVertInfo {
 	std::vector<int> vHoleVertIndex;
+	std::vector<std::vector<int>> vSetExpVertIndex;
+	std::vector<Point3m> vExpPoint;
 	std::vector<float> vZChange;
 };
 
@@ -112,6 +114,17 @@ void rotateInverse(MeshDocument &md, Matrix44m mt) {
 	Matrix44m imt = Inverse(mt);
 
 	ApplyTransform(md, imt, false, true);
+}
+
+std::vector<int> getExpandedVertexIndex(CVertexO* vp) {
+	std::vector<CVertexO*> vExpVert;
+    vcg::face::VVStarVF<CFaceO>(vp, vExpVert);
+	std::vector<int> vExpVertIdx;
+	for (CVertexO* v : vExpVert) {
+		vExpVertIdx.push_back(v->Index());
+	}
+
+	return vExpVertIdx;
 }
 
 // end extra functions
@@ -464,6 +477,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 						vFaceIndex.push_back(sp.f->Index());
 						vertInfo.vHoleVertIndex.push_back(sp.v->Index());
 						vertInfo.vZChange.push_back(zChange);
+						std::vector<int> vExpVertIdx = getExpandedVertexIndex(sp.v);
+						vertInfo.vSetExpVertIndex.push_back(vExpVertIdx);
 
 						if (!hasPrevP) 
 						{
@@ -536,8 +551,6 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 			}
 		}
 
-        
-		bool stepByStep = true;
 		switch(par.getEnum("algo"))
 		{
 			case 0: {
@@ -554,6 +567,26 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					Point3m holeCenter = calcHoleCenter(cm, vVertIndex);
 					// rotate the hole center to z-axis
 					Matrix44m transMt = rotateHoleCenter(md, holeCenter);
+
+					// compute z-change
+					for (int i = 0; i < vVertIndex.size(); i++) {
+						int bIdx = vVertIndex[i];
+
+						Point3m avgExpPoint(0, 0, 0);
+						int count = 0;
+						std::vector<int> vExpVertIdx = hole.vSetExpVertIndex[i];
+						for (int expIdx: vExpVertIdx) {
+							if (cm.vert[expIdx].IsUserBit(borderVBit)) {
+								continue;
+							}
+							avgExpPoint += cm.vert[expIdx].P();
+							++count;
+						}
+						avgExpPoint /= count;
+						float zChange = avgExpPoint.Z() - cm.vert[bIdx].P().Z();
+						hole.vZChange.push_back(zChange);
+						hole.vExpPoint.push_back(avgExpPoint);
+					}
 
 					float edgeLength = expectedEdgeLength;
 					if (edgeLength <= 0) {
