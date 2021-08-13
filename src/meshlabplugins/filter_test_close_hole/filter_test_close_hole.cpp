@@ -46,13 +46,6 @@ using namespace std;
 using namespace vcg;
 
 // our logic
-struct HoleVertInfo {
-	std::vector<int> vHoleVertIndex;
-	std::vector<std::vector<int>> vSetExpVertIndex;
-	std::vector<Point3m> vExpPoint;
-	std::vector<float> vZChange;
-};
-
 // rotate mesh
 void Freeze(MeshModel *m)
 {
@@ -377,7 +370,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
         std::vector<std::vector<int>> vholeI;
         std::vector<std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float>> vholeInfo;
 		std::vector<HoleVertInfo> vHoleVertInfo;
-
+		std::vector<std::vector<HoleVertData>> vHoleData;
 		std::vector<std::vector<int>> vHoleFaceIndex;
 
 		// clear Visited flag for all face in mesh
@@ -427,6 +420,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					std::vector<int> vFaceIndex;					
 					float ratio = 0;
 					HoleVertInfo vertInfo;
+					std::vector<HoleVertData> vHoleVertData;
 
 					tri::Hole<CMeshO>::Box3Type hbox;
 					hbox.Add(sp.v->cP());
@@ -476,9 +470,11 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 						vRatio.push_back(zChange);
 						vFaceIndex.push_back(sp.f->Index());
 						vertInfo.vHoleVertIndex.push_back(sp.v->Index());
-						vertInfo.vZChange.push_back(zChange);
+						// vertInfo.vZChange.push_back(zChange);
 						std::vector<int> vExpVertIdx = getExpandedVertexIndex(sp.v);
 						vertInfo.vSetExpVertIndex.push_back(vExpVertIdx);
+						HoleVertData vData = { vIndex, vExpVertIdx, expandedFP->P() };
+						vHoleVertData.push_back(vData);
 
 						if (!hasPrevP) 
 						{
@@ -506,6 +502,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					vHoleVertInfo.push_back(vertInfo);
 					// assert(averageZRatio == averageZRatio);
 					vholeInfo.push_back(std::make_tuple(vBorderIndex, vDistanceVert, vRatio, averageZRatio));
+					vHoleData.push_back(vHoleVertData);
 					vHoleFaceIndex.push_back(vFaceIndex);
 
 					//I recovered the information on the whole hole
@@ -557,7 +554,6 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				for (HoleVertInfo hole: vHoleVertInfo) {
 
 					std::vector<int> vVertIndex = hole.vHoleVertIndex;
-                    std::vector<float> vZChange = hole.vZChange;
 					float avgZRatio = 1.0;
 
                     if (maxHoleSize > 0 && vVertIndex.size() > maxHoleSize) {
@@ -569,24 +565,46 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					Matrix44m transMt = rotateHoleCenter(md, holeCenter);
 
 					// compute z-change
+					std::vector<float> vZChange2;
 					for (int i = 0; i < vVertIndex.size(); i++) {
 						int bIdx = vVertIndex[i];
 
 						Point3m avgExpPoint(0, 0, 0);
 						int count = 0;
 						std::vector<int> vExpVertIdx = hole.vSetExpVertIndex[i];
-						for (int expIdx: vExpVertIdx) {
-							if (cm.vert[expIdx].IsUserBit(borderVBit)) {
-								continue;
+						if (vExpVertIdx.size() < 2) {
+							assert(false);
+                        } else if (vExpVertIdx.size() == 2) {
+                            avgExpPoint += (cm.vert[vExpVertIdx[0]].P() + cm.vert[vExpVertIdx[1]].P());
+							count = 2;
+						} else {
+							for (int expIdx: vExpVertIdx) {
+								// cm.vert[expIdx].C() = vcg::Color4b::Red;
+								if (cm.vert[expIdx].IsUserBit(borderVBit)) {
+									continue;
+								}
+
+								avgExpPoint += cm.vert[expIdx].P();
+								++count;
 							}
-							avgExpPoint += cm.vert[expIdx].P();
-							++count;
 						}
+						assert(count);
+						// if (count == 0) {
+						// 	cm.vert[bIdx].C() = vcg::Color4b::Yellow;
+						// }
 						avgExpPoint /= count;
-						float zChange = avgExpPoint.Z() - cm.vert[bIdx].P().Z();
-						hole.vZChange.push_back(zChange);
+						float zChange = cm.vert[bIdx].P().Z() - avgExpPoint.Z();
+						// assert(zChange == zChange);
+						vZChange2.push_back(zChange);
 						hole.vExpPoint.push_back(avgExpPoint);
+						// Point3m bPoint = cm.vert[bIdx].P();
+						// float dxy = sqrt( pow(avgExpPoint.X() - bPoint.X(), 2) + pow(avgExpPoint.Y() - bPoint.Y(), 2) );
+						// float sl = zChange / dxy;
+						// hole.vSlope.push_back(sl);
 					}
+                    // assert(hole.vZChange.size() == hole.vSlope.size());
+					// hole.vZChange = hole.vSlope;
+					hole.vZChange = vZChange2;
 
 					float edgeLength = expectedEdgeLength;
 					if (edgeLength <= 0) {
@@ -599,7 +617,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					bool stepByStep = isOneRing;
 					qDebug("start one hole filling with threshold %f", holeThreshold);
 
-					fillHoleRingByRingRefined(cm, vVertIndex, holeThreshold, stepByStep, vZChange, avgZRatio);
+                    fillHoleRingByRingRefined(cm, vVertIndex, holeThreshold, stepByStep, hole.vZChange, avgZRatio);
 
 					qDebug("End one hole filling");
 					// revert the rotation
@@ -639,7 +657,6 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					} 
 					bool stepByStep = isOneRing;
 					qDebug("start one hole filling with threshold %f", holeThreshold);
-
 					fillHoleRingByRing(cm, vVertIndex, holeThreshold, stepByStep, vRatio, avgZRatio);
 
 					qDebug("End one hole filling");

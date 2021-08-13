@@ -463,9 +463,11 @@ float calcCenterZChange(CMeshO& cm, Point3m center, float avgEdge, std::vector<i
     return (totalZChange / count) * minFactor;
 }
 
-int findStepToCenter(Point3m center, Point3m boundary, float avgEdge) {
+int findStepToCenter(Point3m center, Point3m boundary, float avgEdge, float & dRatio) {
+	// avgEdge *= 0.866;
 	float d = distance2Points(center, boundary);
-	int step = round(d / avgEdge);
+	dRatio = d / avgEdge;
+	int step = round(dRatio);
 	
 	return step;
 }
@@ -474,7 +476,8 @@ int findMaxStepToCenter(CMeshO& cm, Point3m center, float avgEdge, std::vector<i
 	int maxStep = 0;
 	for (int index: hole) {
 		Point3m boundary = cm.vert[index].P();
-		int step = findStepToCenter(center, boundary, avgEdge);
+		float dRatio;
+		int step = findStepToCenter(center, boundary, avgEdge, dRatio);
 		if (step > maxStep) {
 			maxStep = step;
 		}
@@ -491,7 +494,8 @@ std::vector<int> rearrangeHole(CMeshO& cm, Point3m center, float avgEdge, std::v
 	for (int i = 0; i < hole.size(); ++i) {
         int index = hole[i];
 		Point3m boundary = cm.vert[index].P();
-		int step = findStepToCenter(center, boundary, avgEdge);
+		float dRatio;
+		int step = findStepToCenter(center, boundary, avgEdge, dRatio);
 		if (step == k) {
 			maxStepIndex = i;
 			break;
@@ -655,10 +659,10 @@ void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool
 
 void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vRatio, float avgZRatio)
 {
-	if (hole.size() == 0) 
-	{
-		return;
-	}
+	// if (hole.size() == 0) 
+	// {
+	// 	return;
+	// }
 
     Point3m centerPoint = findHoleCenterPoint(cm, hole);
 
@@ -674,6 +678,9 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 		// Point3m centerPoint = findHoleCenterPoint(cm, hole);
 		// float centerZChange = calcCenterZChange(cm, centerPoint, startAvgEdge, hole, vRatio);
     	// centerPoint.Z() = centerPoint.Z() + centerZChange;
+		if (hole.size() < 3) {
+			break;
+		}
 
 		hole = reduceHoleByConnectNearby(cm, hole, threshold, centerPoint);
 		hole = rearrangeHole(cm, centerPoint, startAvgEdge, hole);
@@ -716,7 +723,8 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 			int fillIndex = -1;
 
 			// check step to center
-			int stepCenter = findStepToCenter(centerPoint, cm.vert[index].P(), avgEdge);
+			float dRatio;
+			int stepCenter = findStepToCenter(centerPoint, cm.vert[index].P(), avgEdge, dRatio);
 			assert(stepCenter <= maxStepCenter);
 			if (stepCenter < maxStepCenter) {
 				// reducedHole.push_back(index);
@@ -748,6 +756,9 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 				qDebug("LogRatio During fill Border Vertex index %i next index %i coord (x, y, z): (%f, %f, %f) ratio %f \n", index, vi->Index(),
 					cm.vert[index].P().X(), cm.vert[index].P().Y(), cm.vert[index].P().Z(), ratio);
 				// fillPoint.Z() = cm.vert[index].P().Z() * 1.073515;
+				// if (stepCenter >= 2) {
+					// fillPoint.Z() += centerZChange * (dRatio - 1) / 10;
+				// }
 				vi->P() = fillPoint;
 				vi->C() = vcg::Color4b(0, 255, 255, 255);
 				fillIndex = vi->Index();
@@ -770,9 +781,9 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 				cm.face.back().C() = vcg::Color4b::Green;
 			} else {
 				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, prevFilledIndex);
-				cm.face.back().C() = vcg::Color4b::Green;
+				cm.face.back().C() = vcg::Color4b::Magenta;
 				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevFilledIndex, index, fillIndex);
-				cm.face.back().C() = vcg::Color4b::Green;
+				cm.face.back().C() = vcg::Color4b::Magenta;
 			}
 
 			if (skipPrev) {
