@@ -273,7 +273,6 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 	{
 		QStringList algoType;
 		algoType.push_back("Ring by ring with refinement");
-		algoType.push_back("Ring by ring");
 		algoType.push_back("Center point");
 		algoType.push_back("Isosceles");
 		algoType.push_back("Rotate hole center");
@@ -626,46 +625,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 				break;
 			}
-			case 1:
-			{
-				// 1. calc average edge as threshold
-				// 2. add new points which in the line to center
-				// 3. when distance to center < threshold fill by center
-                for (std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float> hole: vholeInfo)
-				{
-					std::vector<int> vVertIndex;
-					std::vector<float> vDistance;
-					std::vector<float> vRatio;
-					float avgZRatio;
-					tie(vVertIndex, vDistance, vRatio, avgZRatio) = hole;
 
-                    if (maxHoleSize > 0 && vVertIndex.size() > maxHoleSize) {
-						continue;
-					}
-
-					// rotate the hole center to z-axis
-					Point3m holeCenter = calcHoleCenter(cm, vVertIndex);
-					Matrix44m transMt = rotateHoleCenter(md, holeCenter);
-
-					float edgeLength = expectedEdgeLength;
-					if (edgeLength <= 0) {
-						edgeLength = CalcAvgHoleEdge(cm, vVertIndex);
-					}
-					float holeThreshold = edgeLength * thresholdRatio;
-					if (holeThreshold <= 0) {
-                        holeThreshold = edgeLength;
-					} 
-					bool stepByStep = isOneRing;
-					qDebug("start one hole filling with threshold %f", holeThreshold);
-					fillHoleRingByRing(cm, vVertIndex, holeThreshold, stepByStep, vRatio, avgZRatio);
-
-					qDebug("End one hole filling");
-					// revert the rotation
-					rotateInverse(md, transMt);
-				}
-			}
-				break;
-			case 2: 
+			case 1: 
 			{
 				for (std::vector<int> hole: vholeI) 
 				{
@@ -682,7 +643,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				}
 			} // end case 1
 				break;
-			case 3: 
+			case 2: 
 			{
 				// 1. calculate average distance
 				// 2. add points by new average distance
@@ -707,7 +668,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 			}
 				break;
-			case 4:
+			case 3:
 			{
 				for (std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float> hole: vholeInfo)
 				{
@@ -726,7 +687,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				}
 			}
 			break;
-			case 5:
+			case 4:
 			{
 				QMessageBox msgBox;
 				msgBox.setText("Holes information");

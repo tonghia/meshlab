@@ -39,5 +39,4 @@ std::vector<int> reduceHoleByConnectNearby(CMeshO& cm, std::vector<int> hole, fl
 void fillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float ratio);
 void fillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, float ratio);
 void fillHoleByIsoscelesTriangle(CMeshO& cm, std::vector<int> hole, std::vector<float> vDistance, float nextPointDistance);
-void fillHoleRingByRing(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vRatio, float avgZRatio);
 void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vRatio, float avgZRatio);
