@@ -46,104 +46,6 @@ Point3m calcAvgPoint(std::vector<int> vIndex, CMeshO& cm)
 	return rs / vIndex.size();
 }
 
-/**
- *  Find next point to fill in the hole by create new Isosceles triangle
- *        * R
- *       *|*         RM is perpendicular with AB
- *      * | *        M is the midpoint of AB
- *     *  |  *
- *  A * * * * * B
- *        M
-*/
-Point3m findFilledVertByIsosceles(Point3m p1, Point3m p2, float filling_point_distance, Point3m hole_center, float edge_distance)
-{
-	N_LOG_FIND_VERT("\n\nStart log find vertext to fill");
-	N_LOG_FIND_VERT("First point %s", pointToString(p1));
-	N_LOG_FIND_VERT("Second point %s", pointToString(p2));
-	N_LOG_FIND_VERT("Hole center point %s", pointToString(hole_center));
-	N_LOG_FIND_VERT("border edge distance %f, filling_point_distance %f", edge_distance, filling_point_distance);
-	// Find the height of Isosceles
-	float h = sqrt(pow(filling_point_distance, 2) - pow(edge_distance / 2, 2));
-	// Find the midpoint of border edge
-	Point3m pM = (p1 + p2) / 2;
-	N_LOG_FIND_VERT("Midpoint of border %s, isosceles triangle height %f", pointToString(pM), h); 
-	// Find coord vector AB 
-	Point3m vAB = p2 - p1;
-	N_LOG_FIND_VERT("Vector border edge %s", pointToString(vAB)); 
-	// Find the new z of filling point
-	float z = (p1.Z() + p2.Z()) / 2;
-	// We have a system of equations with M(xm, ym, zm) and R(xr, yr, zr)
-	// vMR . vAB(a, b, c) = 0 => (xr - xm)*a + (yr - ym)*b + (zr- zm)*c = 0
-	// MR = h => (xr-xm)^2 + (yr-ym)^2 + (zr-zm)^2 = h
-	// dx = xr - xm, dy = yr - ym, dz = zr - zm => dr*a + dy*b + dz*c = 0 => dx = - (dy*b + dz*c) / a
-	// => ((dy*b + dz*c) / a )^2 + dy^2 + dz^2 = h^2
-	// => (dy*b + dz*c)^2 + a^2*dy^2 + a^2*dz^x - a^2*h^2 = 0
-	// => (b + a^2)*dy^x
-	float dx1 = 0, dx2 = 0;
-	float dy1 = 0, dy2 = 0;
-	float dz = z - pM.Z();
-
-	// with a.x^2 + b.x + c = 0
-	float a = pow(vAB.X(), 2) + pow(vAB.Y(), 2);
-	float b = 2 * pow(vAB.X(), 2) * vAB.Y() * vAB.Z() * dz;
-	float c = (pow(vAB.X(), 2) * dz + pow(vAB.Z(), 2)) * dz - pow(vAB.X(), 2) * pow(h, 2);
-	N_LOG_FIND_VERT("Params to solve equation %f %f %f", a, b, c); 
-
-	solveQuadraticEquation(a, b, c, dy1, dy2);
-
-	dx1 = - (dy1 * vAB.Y() + dz * vAB.Z()) / vAB.X();
-	dx2 = - (dy2 * vAB.Y() + dz * vAB.Z()) / vAB.X();
-	N_LOG_FIND_VERT("Coord of vector MR dy1 %f, dy2 %f, dx1 %f, dx2 %f", dy1, dy2, dx1, dx2);
-
-	// N_LOG_FIND_VERT("Test cross product vAB and vMR with dy1: %f", vAB.X() * dx1 + vAB.Y() * dy1 + vAB.Z() * dz);
-	// N_LOG_FIND_VERT("Test cross product vAB and vMR with dy2: %f", vAB.X() * dx2 + vAB.Y() * dy2 + vAB.Z() * dz);
-	// N_LOG_FIND_VERT("Test quadratic equation dy1: %f", a * pow(dy1, 2) + b * dy1 + dz);
-	// N_LOG_FIND_VERT("Test quadratic equation dy2: %f", a * pow(dy2, 2) + b * dy2 + dz);
-	// N_LOG_FIND_VERT("Test length of MR and height with dy1: %f", sqrt(pow(dx1, 2) + pow(dy1, 2) + pow(dz, 2)));
-	// N_LOG_FIND_VERT("Test length of MR and height with dy2: %f", sqrt(pow(dx2, 2) + pow(dy2, 2) + pow(dz, 2)));
-
-	// we have 2 points R1(x1, y1, z), R2(x2, y2, z)
-	float x1 = dx1 + pM.X();
-	float y1 = dy1 + pM.Y();
-	float x2 = dx2 + pM.X();
-	float y2 = dy2 + pM.Y();
-	Point3m pR1(x1, y1, z);
-	Point3m pR2(x2, y2, z);
-	N_LOG_FIND_VERT("Midpoint of border %s, isosceles triangle height %f", pointToString(pM), h); 
-	N_LOG_FIND_VERT("pR1  %s", pointToString(pR1)); 
-	N_LOG_FIND_VERT("pR2  %s", pointToString(pR2)); 
-
-	// N_LOG_FIND_VERT("Test length of MR and height with pR1: %f", distance2Points(pM, pR1));
-	// N_LOG_FIND_VERT("Test length of MR and height with pR2: %f", distance2Points(pM, pR2));
-
-	// get the length of R1C and R2C with C is the hole_center
-	float dc1 = distance2Points(pR1, hole_center);
-	float dc2 = distance2Points(pR2, hole_center);
-	N_LOG_FIND_VERT("Result of fill point %s bc dc1 = %f, dc2 = %f", pointToString(dc1 > dc2 ? pR2 : pR1), dc1, dc2); 
-
-	N_LOG_FIND_VERT("End log find vertext to fill \n\n");
-	// get the point closer to center
-	return dc1 > dc2 ? pR2 : pR1;
-}
-
-int solveQuadraticEquation(float a, float b, float c, float &x1, float &x2){
-    float delta = b*b - 4*a*c;
-    if(delta<0){
-        x1=x2=0.0;
-        return 0;
-    }
-    else if(delta==0){
-        x1 = x2 = -b/(2*a);
-        return 1;
-    }
-    else{
-        delta = sqrt(delta);
-        x1 = (-b + delta) / (2*a);
-        x2 = (-b - delta) / (2*a);
-        return 2;
-    }
-}
-
 const char* pointToString(Point3m p)
 {
     std::string s = "(x, y, z) - (" + std::to_string(p.X()) + ", " + std::to_string(p.Y()) + ", " + std::to_string(p.Z()) + ")";
@@ -153,55 +55,6 @@ const char* pointToString(Point3m p)
 QString PointToQString(Point3m p) {
 
 	return QString("(x, y, z) - (%1, %2, %3)").arg(QString::number(p.X()), QString::number(p.Y()), QString::number(p.Z()));
-}
-
-void fillHoleByIsoscelesTriangle(CMeshO& cm, std::vector<int> hole, std::vector<float> vDistance, float nextPointDistance)
-{
-	if (hole.size() == 0) 
-	{
-		return;
-	}
-
-    Point3m centerPoint = findHoleCenterPoint(cm, hole);
-	// map<int, vector<int>> fillPointMap;
-	int prevFillIndex = -1;
-	for (int i = 0; i < hole.size(); ++i)
-	{
-        int nextIndex = i == hole.size() - 1 ? 0 : i + 1;
-		N_LOG_FILL_VERT("index of vert %i %i", hole[i], hole[nextIndex]);
-		int firstIndex = hole[i];
-		int secondIndex = hole[nextIndex];
-		auto firstVert = cm.vert[hole[i]];
-		auto secondVert = cm.vert[hole[nextIndex]];
-		N_LOG_FILL_VERT("firstVert %s", pointToString(firstVert.P()));
-		N_LOG_FILL_VERT("secondVert %s", pointToString(secondVert.P()));
-
-        Point3m fillPoint = findFilledVertByIsosceles(firstVert.P(), secondVert.P(), nextPointDistance, centerPoint, vDistance[i]);
-		N_LOG_FILL_VERT("filling point %s", pointToString(fillPoint));
-
-		// check last filled point in map to group near point
-		if (prevFillIndex != -1)
-		{
-			Point3m prevFillPoint = cm.vert[prevFillIndex].P();
-			if (distance2Points(prevFillPoint, fillPoint) < nextPointDistance)
-			{
-				// make average current and last filled point, should be avg of all component points
-                cm.vert[prevFillIndex].P() = (prevFillPoint + fillPoint) / 2;
-				vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIndex, secondIndex, prevFillIndex);
-				continue;
-			}
-		}
-		
-
-		// add point to mesh
-        CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
-        vi->P() = fillPoint;
-		prevFillIndex = vi->Index();
-        N_LOG_FILL_VERT("mesh vert size %i, first index %i, second index %i, new index %i", cm.vert.size(), firstIndex, secondIndex, vi->Index());
-        vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIndex, secondIndex, vi->Index());
-	}
-
-	return;
 }
 
 Point3m findHoleCenterPoint(CMeshO& cm, std::vector<int> hole)
@@ -313,9 +166,17 @@ int chooseEdgeNearAvg(float d1, float d2, float avgd) {
 }
 
 void fillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, float ratio, Point3m centerP) {
-	if (hole.size() <= 3) {
+	if (hole.size() < 3) {
         return;
     }
+
+	if (hole.size() == 3) {
+		int firstIdx = cm.vert[hole[0]].Index();
+		int secondIdx = cm.vert[hole[1]].Index();
+		int thirdIdx = cm.vert[hole[2]].Index();
+		vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, secondIdx, thirdIdx);
+		return;
+	}
 
 	// Point3m centerP(0, 0, 0);
 	// float maxZ = cm.vert[hole[0]].P().Z();
@@ -434,7 +295,7 @@ bool checkNewPrevPointDistance(Point3m newFill, Point3m prevFill, float threshol
 	return d > threshold;
 }
 
-float calcCenterZChange(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<float> vratio) {
+float calcCenterZChange(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<float> vZChange) {
 	// 1. each boundary - ratio, check distance to center d, factor to center = d/avgEdge, rounded factor
 	// 2. only get min rounded factor, total factor, count factor
 	// 3. average of 2 is result
@@ -444,7 +305,7 @@ float calcCenterZChange(CMeshO& cm, Point3m center, float avgEdge, std::vector<i
 	for (int i = 0; i < hole.size(); i++) {
 		int bindex = hole[i];
 		Point3m bvertex = cm.vert[bindex].P();
-		float zChange = vratio[i];
+		float zChange = vZChange[i];
 
 		float d = distance2Points(bvertex, center);
 		float factor = d / avgEdge;
@@ -562,7 +423,7 @@ std::vector<int> reduceHoleByConnectNearby(CMeshO& cm, std::vector<int> hole, fl
 	return cHole;
 }
 
-void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vRatio, float avgZRatio)
+void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vZChange, float adjustRatio)
 {
 	// if (hole.size() == 0) 
 	// {
@@ -575,7 +436,7 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 	float startAvgEdge = CalcAvgHoleEdge(cm, hole);
 	float factor = avgCenterDistance / startAvgEdge;
 
-	float centerZChange = calcCenterZChange(cm, centerPoint, startAvgEdge, hole, vRatio);
+	float centerZChange = calcCenterZChange(cm, centerPoint, startAvgEdge, hole, vZChange);
     centerPoint.Z() = centerPoint.Z() + centerZChange;
 
 	while (true)
@@ -622,7 +483,11 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 		for (int i = 0; i < hole.size(); i++)
 		{
 			int index = hole[i];
-			float ratio = vRatio[i]; // TODO: remove
+			// float ratio = vRatio[i]; // TODO: remove
+			// if (cm.vert[index].P().Z() > centerPoint.Z()) {
+			// 	cm.vert[index].C() = vcg::Color4b::Red;
+			// 	qDebug("border z %f center z %f", cm.vert[index].P().Z(), centerPoint.Z());
+			// }
 
 			Point3m fillPoint = calcFillingPoint(cm.vert[index].P(), centerPoint, avgEdge, 1);
 			int fillIndex = -1;
@@ -658,12 +523,15 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 			if (index != hole.back()) {
 				// add point to mesh
 				vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
-				qDebug("LogRatio During fill Border Vertex index %i next index %i coord (x, y, z): (%f, %f, %f) ratio %f \n", index, vi->Index(),
-					cm.vert[index].P().X(), cm.vert[index].P().Y(), cm.vert[index].P().Z(), ratio);
+				qDebug("LogRatio During fill Border Vertex step %i index %i next index %i coord (x, y, z): (%f, %f, %f) \n", stepCenter, index, vi->Index(),
+					cm.vert[index].P().X(), cm.vert[index].P().Y(), cm.vert[index].P().Z());
 				// fillPoint.Z() = cm.vert[index].P().Z() * 1.073515;
 				// if (stepCenter >= 2) {
-					// fillPoint.Z() += centerZChange * (dRatio - 1) / 10;
+					// fillPoint.Z() += centerZChange * (dRatio - 1) * adjustRatio;
+					// qDebug("LogRatio During fill Border Vertex index %f \n", centerZChange * (dRatio - 1) * adjustRatio);
 				// }
+				// float czChange = fillPoint.Z() - cm.vert[index].P().Z();
+				// fillPoint.Z() += czChange * adjustRatio;
 				vi->P() = fillPoint;
 				vi->C() = vcg::Color4b(0, 255, 255, 255);
 				fillIndex = vi->Index();

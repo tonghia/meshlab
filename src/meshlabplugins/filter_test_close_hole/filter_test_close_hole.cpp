@@ -272,14 +272,14 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 	case FP_TEST_CLOSE_HOLE:
 	{
 		QStringList algoType;
-		algoType.push_back("Ring by ring with refinement");
-		algoType.push_back("Center point");
-		algoType.push_back("Isosceles");
-		algoType.push_back("Rotate hole center");
+		algoType.push_back("Fill large hole ring by ring");
+		algoType.push_back("Fill small hole by center point");
+		algoType.push_back("Rotate hole center to Oz");
 		algoType.push_back("Get hole information");
 		parlst.addParam(RichEnum("algo", 0, algoType, tr("Algorithm type"), tr("Choose the algorithm to close hole")));
         parlst.addParam(RichFloat("expect_edge_length", 0, "Expected edge length", "If value = 0 then expected edge length is the average hole edges"));
-        parlst.addParam(RichFloat("threshold_ratio", 1.0, "Threhold ratio", "Threshold = Threhold ratio * Expected edge length"));
+        parlst.addParam(RichFloat("threshold_ratio", 1.0, "Threshold ratio", "Threshold = Threhold ratio * Expected edge length"));
+		// parlst.addParam(RichDynamicFloat("adjust_ratio", 0.1f, 0.0f, 1.0f, "Adjustment z-coordinate ratio", "Adjustment ratio to adjust z-coordinate when filling new points"));
 		// optional flags
         parlst.addParam(RichInt("max_hole_size", int(0), "Max hole size", "Size of a hole is the number of boundary face of that hole"));
 		parlst.addParam(RichBool("selected", m.cm.sfn>0, "Apply algorithm with selected faces", "Only the holes with at least one of the boundary faces selected are applied"));
@@ -359,6 +359,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		bool enableBorderColor = par.getBool("enable_border_color");
 		float expectedEdgeLength = par.getFloat("expect_edge_length");
 		float thresholdRatio = par.getFloat("threshold_ratio");
+		// float adjustRatio = par.getFloat("adjust_ratio");
+		float adjustRatio = 0;
         float maxHoleSize = par.getInt("max_hole_size");
 		bool selected = par.getBool("selected"); 
 		bool isOneRing = par.getBool("one_ring");
@@ -547,6 +549,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 			}
 		}
 
+		// bool stop = false;
 		switch(par.getEnum("algo"))
 		{
 			case 0: {
@@ -589,7 +592,9 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 						}
 						assert(count);
 						// if (count == 0) {
-						// 	cm.vert[bIdx].C() = vcg::Color4b::Yellow;
+						// 	cm.vert[bIdx].C() = vcg::Color4b::Red;
+						// 	stop = true;
+						// 	break;
 						// }
 						avgExpPoint /= count;
 						float zChange = cm.vert[bIdx].P().Z() - avgExpPoint.Z();
@@ -615,8 +620,11 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					} 
 					bool stepByStep = isOneRing;
 					qDebug("start one hole filling with threshold %f", holeThreshold);
+					// if (stop) {
+					// 	break;
+					// }
 
-                    fillHoleRingByRingRefined(cm, vVertIndex, holeThreshold, stepByStep, hole.vZChange, avgZRatio);
+                    fillHoleRingByRingRefined(cm, vVertIndex, holeThreshold, stepByStep, hole.vZChange, adjustRatio);
 
 					qDebug("End one hole filling");
 					// revert the rotation
@@ -643,32 +651,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				}
 			} // end case 1
 				break;
-			case 2: 
-			{
-				// 1. calculate average distance
-				// 2. add points by new average distance
-				// 3. modify and improve
-                for (std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float> hole: vholeInfo)
-				{
-					std::vector<int> vVertIndex;
-					std::vector<float> vDistance;
-                    std::vector<float> vRatio;
-					float avgZRatio;
-                    tie(vVertIndex, vDistance, vRatio, avgZRatio) = hole;
-                    if (maxHoleSize > 0 && vVertIndex.size() > maxHoleSize) {
-						continue;
-					}
-					float avgDistance = calcAvgDistance(vDistance);
-					qDebug("start one hole filling with distance %f", avgDistance);
 
-					fillHoleByIsoscelesTriangle(cm, vVertIndex, vDistance, avgDistance);
-
-					qDebug("End one hole filling");
-				}
-
-			}
-				break;
-			case 3:
+			case 2:
 			{
 				for (std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float> hole: vholeInfo)
 				{
@@ -687,7 +671,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				}
 			}
 			break;
-			case 4:
+			case 3:
 			{
 				QMessageBox msgBox;
 				msgBox.setText("Holes information");

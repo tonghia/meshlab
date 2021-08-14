@@ -17,8 +17,6 @@ struct HoleVertData {
 float distance2Points(Point3m p1, Point3m p2);
 float calcAvgDistance(std::vector<float> v_distance);
 Point3m calcAvgPoint(std::vector<int> vIndex, CMeshO& cm);
-Point3m findFilledVertByIsosceles(Point3m p1, Point3m p2, float filling_point_distance, Point3m hole_center, float edge_distance);
-int solveQuadraticEquation(float a, float b, float c, float &x1, float &x2);
 const char* pointToString(Point3m p);
 QString PointToQString(Point3m p);
 Point3m findHoleCenterPoint(CMeshO& cm, std::vector<int> hole);
@@ -38,5 +36,4 @@ std::vector<int> reduceHoleByConnectNearby(CMeshO& cm, std::vector<int> hole, fl
 // Fill hole algorithm
 void fillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float ratio);
 void fillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, float ratio);
-void fillHoleByIsoscelesTriangle(CMeshO& cm, std::vector<int> hole, std::vector<float> vDistance, float nextPointDistance);
-void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vRatio, float avgZRatio);
+void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vZChange, float adjustRatio);
