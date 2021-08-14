@@ -202,7 +202,7 @@ QString FilterFillHolePlugin::filterInfo(ActionIDType filterId) const
 	case FP_TEST_DP_CLOSE_HOLE:
 		return "Test close hole with Meshlab algorithm";
 	case FP_TEST_CLOSE_HOLE:
-		return "My research algorithm for close hole";
+		return "Our proposed method for close hole";
 	default:
 		return "Unknown Filter";
 	}
@@ -273,18 +273,20 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 	{
 		QStringList algoType;
 		algoType.push_back("Fill large hole ring by ring");
-		algoType.push_back("Fill small hole by center point");
-		algoType.push_back("Rotate hole center to Oz");
+		algoType.push_back("Fill small hole by centroid point");
+		algoType.push_back("Rotate hole centroid to Oz");
 		algoType.push_back("Get hole information");
 		parlst.addParam(RichEnum("algo", 0, algoType, tr("Algorithm type"), tr("Choose the algorithm to close hole")));
-        parlst.addParam(RichFloat("expect_edge_length", 0, "Expected edge length", "If value = 0 then expected edge length is the average hole edges"));
-        parlst.addParam(RichFloat("threshold_ratio", 1.0, "Threshold ratio", "Threshold = Threhold ratio * Expected edge length"));
+		parlst.addParam(RichPoint3f("hole_centroid", Point3f(0,0,0), "Centroid point", "Centroid point of a hole for running step by step"));
+        parlst.addParam(RichFloat("expect_edge_length", 0, "Base edge length", "If value = 0 then expected edge length is the average hole edges"));
+        // parlst.addParam(RichFloat("threshold_ratio", 1.0, "Threshold ratio", "Threshold = Threhold ratio * Expected edge length"));
 		// parlst.addParam(RichDynamicFloat("adjust_ratio", 0.1f, 0.0f, 1.0f, "Adjustment z-coordinate ratio", "Adjustment ratio to adjust z-coordinate when filling new points"));
-		// optional flags
         parlst.addParam(RichInt("max_hole_size", int(0), "Max hole size", "Size of a hole is the number of boundary face of that hole"));
+		// optional flags
 		parlst.addParam(RichBool("selected", m.cm.sfn>0, "Apply algorithm with selected faces", "Only the holes with at least one of the boundary faces selected are applied"));
 		parlst.addParam(RichBool("one_ring", false, "Apply algorithm to fill one ring only", "Fill the hole one ring to the center"));
-		parlst.addParam(RichBool("enable_border_color", false, "Change color of border face and border vertex"));
+        parlst.addParam(RichBool("prevent_rotate", false, "Prevent rotate the hole", "Prevent rotate the mesh to move hole centroid to z-axis"));
+		parlst.addParam(RichBool("enable_border_color", false, "Change color of boundary faces and boundary vertexes"));
 	}
 		break;
 	default:
@@ -357,13 +359,16 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 		// get parameters
 		bool enableBorderColor = par.getBool("enable_border_color");
+		Point3m ucentroid = par.getPoint3m("hole_centroid");
 		float expectedEdgeLength = par.getFloat("expect_edge_length");
-		float thresholdRatio = par.getFloat("threshold_ratio");
+		// float thresholdRatio = par.getFloat("threshold_ratio");
+		float thresholdRatio = 1;
 		// float adjustRatio = par.getFloat("adjust_ratio");
 		float adjustRatio = 0;
         float maxHoleSize = par.getInt("max_hole_size");
 		bool selected = par.getBool("selected"); 
 		bool isOneRing = par.getBool("one_ring");
+		bool preventRotate = par.getBool("prevent_rotate");
 
 		std::vector<tri::Hole<CMeshO>::Info> vinfo;
 		int borderVBit = CVertexO::NewBitFlag();
@@ -556,7 +561,6 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				for (HoleVertInfo hole: vHoleVertInfo) {
 
 					std::vector<int> vVertIndex = hole.vHoleVertIndex;
-					float avgZRatio = 1.0;
 
                     if (maxHoleSize > 0 && vVertIndex.size() > maxHoleSize) {
 						continue;
@@ -689,10 +693,14 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 						continue;
 					}
 					float avgDistance = calcAvgDistance(vDistance);
+                    Point3m holeCenter = calcHoleCenter(cm, vVertIndex);
 
 					++count;
-					log("Hole number %i size %i average edge %f avg ratio %f", count, vVertIndex.size(), avgDistance, avgZRatio);
-					text.append(QString("Hole number %1 size %2 average edge %3 avg ratio %4 \n").arg(QString::number(count), QString::number(vVertIndex.size()), QString::number(avgDistance), QString::number(avgZRatio)));
+					log("Hole number %i size %i average edge %f centroid point C(%f, %f, %f)", count, vVertIndex.size(), avgDistance, holeCenter.X(), holeCenter.Y(), holeCenter.Z());
+					text.append(QString("Hole number %1 size %2 average edge %3 centroid point C(%4, %5, %6) \n").arg(
+						QString::number(count), QString::number(vVertIndex.size()), QString::number(avgDistance), 
+						QString::number(holeCenter.X()), QString::number(holeCenter.Y()), QString::number(holeCenter.Z())
+						));
 				}
 
 				msgBox.setInformativeText(text);
