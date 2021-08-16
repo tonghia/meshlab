@@ -7,18 +7,18 @@
 
 #include <QtGui>
 
-#define _N_DEBUG_FIND_VERT
-#ifdef _N_DEBUG_FIND_VERT
-#define N_LOG_FIND_VERT(...) qDebug(__VA_ARGS__)
-#else
-#define N_LOG_FIND_VERT(...)
-#endif
-
 #define _N_DEBUG_FILL_VERT
 #ifdef _N_DEBUG_FILL_VERT
 #define N_LOG_FILL_VERT(...) qDebug() << __VA_ARGS__
 #else
 #define N_LOG_FILL_VERT(...)
+#endif
+
+// #define _N_DEBUG_FILL_CENTER
+#ifdef _N_DEBUG_FILL_CENTER
+#define N_LOG_FILL_CENTER(...) qDebug(__VA_ARGS__)
+#else
+#define N_LOG_FILL_CENTER(...)
 #endif
 
 
@@ -112,13 +112,13 @@ void fillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float rati
 	for (int idx: hole)
 	{
 		centerP += cm.vert[idx].P();
-		qDebug("point x, y, z, index %i (%f, %f, %f)", cm.vert[idx].Index(), cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z());
+		N_LOG_FILL_CENTER("point x, y, z, index %i (%f, %f, %f)", cm.vert[idx].Index(), cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z());
 		if (cm.vert[idx].P().Z() > maxZ) {
 			maxZ = cm.vert[idx].P().Z();
 		}
 	}
 	centerP /= hole.size();
-	qDebug("hole center point x, y, z (%f, %f, %f) \n\n", centerP.X(), centerP.Y(), centerP.Z());
+	N_LOG_FILL_CENTER("hole center point x, y, z (%f, %f, %f) \n\n", centerP.X(), centerP.Y(), centerP.Z());
 
 	CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
 	// centerP.Z() = centerP.Z() * ratio;
@@ -138,9 +138,9 @@ void fillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float rati
 			continue;
 		}
 
-		qDebug("new mesh point 1 x, y, z, index %i (%f, %f, %f)", cm.vert[prevI].P().X(), cm.vert[prevI].P().Y(), cm.vert[prevI].P().Z(), cm.vert[prevI].Index());
-		qDebug("new mesh point 2 x, y, z, index %i (%f, %f, %f)", cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z(), cm.vert[idx].Index());
-		qDebug("new mesh point 3 x, y, z, index %i (%f, %f, %f)", vi->P().X(), vi->P().Y(), vi->P().Z(), vi->Index());
+		N_LOG_FILL_CENTER("new mesh point 1 x, y, z, index %i (%f, %f, %f)", cm.vert[prevI].P().X(), cm.vert[prevI].P().Y(), cm.vert[prevI].P().Z(), cm.vert[prevI].Index());
+		N_LOG_FILL_CENTER("new mesh point 2 x, y, z, index %i (%f, %f, %f)", cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z(), cm.vert[idx].Index());
+		N_LOG_FILL_CENTER("new mesh point 3 x, y, z, index %i (%f, %f, %f)", vi->P().X(), vi->P().Y(), vi->P().Z(), vi->Index());
 
 		// CMeshO::FaceIterator fi = vcg::tri::Allocator<CMeshO>::AddFaces(cm, 1);
 		// fi->V(0)=prevP;
@@ -275,7 +275,7 @@ Point3m calcFillingPoint(Point3m boundaryPoint, Point3m centerPoint, float avgEd
 	float dCenter = distance2Points(boundaryPoint, centerPoint);
 	float k = avgEdge / dCenter;
 
-	N_LOG_FILL_VERT("distance to center %f and ratio %f", dCenter, k);
+	N_LOG_FILL_VERT(QString("distance to center %1 and ratio %2").arg(QString::number(dCenter), QString::number(k)));
 	assert(dCenter == dCenter);
 	Point3m fillPoint = ((centerPoint - boundaryPoint) * k) + boundaryPoint;
 
@@ -437,6 +437,7 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 	float factor = avgCenterDistance / startAvgEdge;
 
 	float centerZChange = calcCenterZChange(cm, centerPoint, startAvgEdge, hole, vZChange);
+	assert(centerZChange);
     centerPoint.Z() = centerPoint.Z() + centerZChange;
 
 	while (true)
@@ -469,9 +470,9 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 		// insert first point by using last boundary point
 		Point3m firstFillPoint = calcFillingPoint(cm.vert[hole.back()].P(), centerPoint, avgEdge, 1);
 		CMeshO::VertexIterator firstFillV = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
-		N_LOG_FILL_VERT(QString("LogRatio During fill Border Vertex index %1 next index %2 coord (x, y, z): (%3, %4, %5) ratio %6 \n").arg(
+		N_LOG_FILL_VERT(QString("LogFirstFill During fill Border Vertex index %1 next index %2 coord (x, y, z): (%3, %4, %5) \n").arg(
 			QString::number(hole.back()), QString::number(firstFillV->Index()), QString::number(cm.vert[hole.back()].P().X()), QString::number(cm.vert[hole.back()].P().Y()), 
-			QString::number(cm.vert[hole.back()].P().Z()), QString::number(1)
+			QString::number(cm.vert[hole.back()].P().Z())
 			));
 		firstFillV->P() = firstFillPoint;
 		firstFillV->C() = vcg::Color4b(0, 255, 255, 255);
@@ -523,8 +524,10 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 			if (index != hole.back()) {
 				// add point to mesh
 				vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
-				qDebug("LogRatio During fill Border Vertex step %i index %i next index %i coord (x, y, z): (%f, %f, %f) \n", stepCenter, index, vi->Index(),
-					cm.vert[index].P().X(), cm.vert[index].P().Y(), cm.vert[index].P().Z());
+				N_LOG_FILL_VERT(QString("LogFillPoint During fill Border Vertex step %1 index %2 next index %3 coord (x, y, z): (%4, %5, %6) \n").arg(
+					QString::number(stepCenter), QString::number(index), QString::number(vi->Index()),
+					QString::number(cm.vert[index].P().X()), QString::number(cm.vert[index].P().Y()), QString::number(cm.vert[index].P().Z())
+				));
 				// fillPoint.Z() = cm.vert[index].P().Z() * 1.073515;
 				// if (stepCenter >= 2) {
 					// fillPoint.Z() += centerZChange * (dRatio - 1) * adjustRatio;

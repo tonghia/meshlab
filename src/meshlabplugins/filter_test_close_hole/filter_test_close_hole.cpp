@@ -35,12 +35,14 @@
 #include <vcg/complex/algorithms/hole.h>
 #include <vcg/space/color4.h>
 
-//#define _N_DEBUG1
-#ifdef _N_DEBUG1
-#define N_LOG1(...) qDebug(__VA_ARGS__)
+
+// #define _N_DEBUG_FIND_VERT
+#ifdef _N_DEBUG_FIND_VERT
+#define N_LOG_FIND_VERT(...) qDebug(__VA_ARGS__)
 #else
-#define N_LOG1(...)
+#define N_LOG_FIND_VERT(...)
 #endif
+
 
 using namespace std;
 using namespace vcg;
@@ -412,7 +414,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					// CVertexO* v2 = (*fi).V((j + 1) % 3);
 					// (*v2).C() = vcg::Color4b(255, 0, 255, 255);
 
-					qDebug("Hole %i detected \n", vinfo.size() + 1);
+					N_LOG_FIND_VERT("Hole %i detected \n", vinfo.size() + 1);
 					std::vector<CVertexO*> vBorderVertex;
 					std::vector<int> vBorderIndex;
 					std::vector<float> vDistanceVert;
@@ -454,18 +456,11 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 							++countExpandZ;
 						}
 
-						qDebug("LogRatio Border Vertex index %i coord (x, y, z): (%f, %f, %f) index %d \n", 
+						N_LOG_FIND_VERT("Border Vertex index %i coord (x, y, z): (%f, %f, %f) index %d \n", 
 							sp.v->Index(), sp.v->P().X(), sp.v->P().Y(), sp.v->P().Z(), sp.v->Index());
-						qDebug("LogRatio Extended Vertex index %i coord (x, y, z): (%f, %f, %f) index %d \n", 
+						N_LOG_FIND_VERT("Extended Vertex index %i coord (x, y, z): (%f, %f, %f) index %d \n", 
 							expandedFP->Index(), expandedFP->P().X(), expandedFP->P().Y(), expandedFP->P().Z(), expandedFP->Index());
-						// ratio =  sp.v->P().Z() / expandedFP->P().Z();
-						qDebug("LogRatio Ratio %f \n", ratio);
 
-
-						// if (ratio < 1) {
-							// sp.v->C() = vcg::Color4b(255, 0, 255, 255);
-							// expandedFP->C() = vcg::Color4b(255, 255, 0, 255);
-						// }
 						float zChange = sp.v->P().Z() - expandedFP->P().Z();
 
 						int vIndex = sp.v->Index();
@@ -594,7 +589,15 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 								++count;
 							}
 						}
-						assert(count);
+                        // assert(count);
+
+                        if (count == 0) {
+                            for (int expIdx: vExpVertIdx) {
+
+                                avgExpPoint += cm.vert[expIdx].P();
+                                ++count;
+                            }
+                        }
 						// if (count == 0) {
 						// 	cm.vert[bIdx].C() = vcg::Color4b::Red;
 						// 	stop = true;
