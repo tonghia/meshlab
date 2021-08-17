@@ -28,11 +28,6 @@ float distance2Points(Point3m p1, Point3m p2)
 	return sqrt(pow(p2.X() - p1.X(), 2) + pow(p2.Y() - p1.Y(), 2) + pow(p2.Z() - p1.Z(), 2));
 }
 
-float calcAvgDistance(std::vector<float> v_distance)
-{
-    return v_distance.size() == 0 ? 0 : std::accumulate(v_distance.begin(), v_distance.end(), decltype(v_distance)::value_type(0)) / v_distance.size();
-}
-
 Point3m calcAvgPoint(std::vector<int> vIndex, CMeshO& cm)
 {
 	assert(vIndex.size() != 0);
@@ -90,7 +85,7 @@ float CalcAvgHoleEdge(CMeshO& cm, std::vector<int> hole)
 	return d / hole.size();
 }
 
-Point3m calcHoleCenter(CMeshO& cm, std::vector<int> hole) {
+Point3m CalcHoleCenter(CMeshO& cm, std::vector<int> hole) {
 	Point3m centerP(0, 0, 0);
 	for (int idx: hole)
 	{
@@ -101,148 +96,12 @@ Point3m calcHoleCenter(CMeshO& cm, std::vector<int> hole) {
 	return centerP;
 }
 
-void fillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float ratio)
-{
-    if (hole.size() <= 3) {
-        return;
-    }
-
-	Point3m centerP(0, 0, 0);
-	float maxZ = cm.vert[hole[0]].P().Z();
-	for (int idx: hole)
-	{
-		centerP += cm.vert[idx].P();
-		N_LOG_FILL_CENTER("point x, y, z, index %i (%f, %f, %f)", cm.vert[idx].Index(), cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z());
-		if (cm.vert[idx].P().Z() > maxZ) {
-			maxZ = cm.vert[idx].P().Z();
-		}
-	}
-	centerP /= hole.size();
-	N_LOG_FILL_CENTER("hole center point x, y, z (%f, %f, %f) \n\n", centerP.X(), centerP.Y(), centerP.Z());
-
-	CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
-	// centerP.Z() = centerP.Z() * ratio;
-	centerP.Z() = maxZ;
-	vi->P() = centerP;
-	vi->C() = vcg::Color4b(0, 255, 255, 255);
-	// CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertex(cm, centerP);
-
-	int prevI = -1;
-	int firstI = -1;
-	for (int idx: hole)
-	{
-		if (prevI == -1)
-		{
-			prevI = idx;
-			firstI = idx;
-			continue;
-		}
-
-		N_LOG_FILL_CENTER("new mesh point 1 x, y, z, index %i (%f, %f, %f)", cm.vert[prevI].P().X(), cm.vert[prevI].P().Y(), cm.vert[prevI].P().Z(), cm.vert[prevI].Index());
-		N_LOG_FILL_CENTER("new mesh point 2 x, y, z, index %i (%f, %f, %f)", cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z(), cm.vert[idx].Index());
-		N_LOG_FILL_CENTER("new mesh point 3 x, y, z, index %i (%f, %f, %f)", vi->P().X(), vi->P().Y(), vi->P().Z(), vi->Index());
-
-		// CMeshO::FaceIterator fi = vcg::tri::Allocator<CMeshO>::AddFaces(cm, 1);
-		// fi->V(0)=prevP;
-		// fi->V(1)=v;
-		// fi->V(2)=&*vi;
-		vcg::tri::Allocator<CMeshO>::AddFace(cm, prevI, idx, vi->Index());
-
-		prevI = idx;
-	}
-	if (firstI != -1) {
-		vcg::tri::Allocator<CMeshO>::AddFace(cm, firstI, prevI, vi->Index());
-	}
-
-	return;
-}
-
 int chooseEdgeNearAvg(float d1, float d2, float avgd) {
     assert(d1 > 0 && d2 > 0 && avgd > 0);
 	float diff1 = abs(d1 - avgd);
 	float diff2 = abs(d2 - avgd);
 	
 	return diff1 > diff2 ? 1 : 2;
-}
-
-void fillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, float ratio, Point3m centerP) {
-	if (hole.size() < 3) {
-        return;
-    }
-
-	if (hole.size() == 3) {
-		int firstIdx = cm.vert[hole[0]].Index();
-		int secondIdx = cm.vert[hole[1]].Index();
-		int thirdIdx = cm.vert[hole[2]].Index();
-		vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, secondIdx, thirdIdx);
-		return;
-	}
-
-	// Point3m centerP(0, 0, 0);
-	// float maxZ = cm.vert[hole[0]].P().Z();
-	// for (int idx: hole)
-	// {
-	// 	centerP += cm.vert[idx].P();
-	// 	qDebug("point x, y, z, index %i (%f, %f, %f)", cm.vert[idx].Index(), cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z());
-	// 	if (cm.vert[idx].P().Z() > maxZ) {
-	// 		maxZ = cm.vert[idx].P().Z();
-	// 	}
-	// }
-	// centerP /= hole.size();
-	qDebug("hole center point x, y, z (%f, %f, %f) \n\n", centerP.X(), centerP.Y(), centerP.Z());
-
-	CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
-	int centerIdx = vi->Index();
-	// centerP.Z() = centerP.Z() * ratio;
-	// centerP.Z() = maxZ;
-	vi->P() = centerP;
-	vi->C() = vcg::Color4b(0, 255, 255, 255);
-	// CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertex(cm, centerP);
-
-	int prevI = -1;
-	int firstI = -1;
-	for (int i = 0; i < hole.size() - 1; i++)
-	{
-		int idx = hole[i];
-
-		int firstIdx = hole[i];
-		int secondIdx = hole[(i + 1) % hole.size()];
-		int thirdIdx = hole[(i + 2) % hole.size()];
-
-		float d13 = distance2Points(cm.vert[firstIdx].P(), cm.vert[thirdIdx].P());
-		float d1c = distance2Points(cm.vert[firstIdx].P(), centerP);
-		float d2c = distance2Points(cm.vert[secondIdx].P(), centerP);
-
-		float d21 = distance2Points(cm.vert[secondIdx].P(), cm.vert[firstIdx].P());
-		float d23 = distance2Points(cm.vert[secondIdx].P(), cm.vert[thirdIdx].P());
-
-		if (d13 < d2c && d2c > d1c && (d13 < d21*1.2 || d13 < d23*1.2)) {
-			// add face 13c, 123; i++
-			vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, thirdIdx, centerIdx);
-			cm.face.back().C() = vcg::Color4b::Gray;
-			vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, secondIdx, thirdIdx);
-			cm.face.back().C() = vcg::Color4b::Gray;
-
-			++i;
-			
-			if (i == hole.size() - 2) {
-				// add face 3c & first
-				vcg::tri::Allocator<CMeshO>::AddFace(cm, hole[0], thirdIdx, centerIdx);
-				cm.face.back().C() = vcg::Color4b::Gray;
-			}
-		} else {
-			// add face 12c; continue
-			vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, secondIdx, centerIdx);
-			cm.face.back().C() = vcg::Color4b::Gray;
-			if (i == hole.size() - 2) {
-				// add face 23c
-				vcg::tri::Allocator<CMeshO>::AddFace(cm, secondIdx, thirdIdx, centerIdx);
-				cm.face.back().C() = vcg::Color4b::Gray;
-			}
-		}
-	}
-
-	return;
 }
 
 float calcAvgDistanceToCenter(CMeshO& cm, std::vector<int> hole, Point3m centerPoint)
@@ -423,7 +282,143 @@ std::vector<int> reduceHoleByConnectNearby(CMeshO& cm, std::vector<int> hole, fl
 	return cHole;
 }
 
-void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vZChange, float adjustRatio)
+void FillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float ratio)
+{
+    if (hole.size() <= 3) {
+        return;
+    }
+
+	Point3m centerP(0, 0, 0);
+	float maxZ = cm.vert[hole[0]].P().Z();
+	for (int idx: hole)
+	{
+		centerP += cm.vert[idx].P();
+		N_LOG_FILL_CENTER("point x, y, z, index %i (%f, %f, %f)", cm.vert[idx].Index(), cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z());
+		if (cm.vert[idx].P().Z() > maxZ) {
+			maxZ = cm.vert[idx].P().Z();
+		}
+	}
+	centerP /= hole.size();
+	N_LOG_FILL_CENTER("hole center point x, y, z (%f, %f, %f) \n\n", centerP.X(), centerP.Y(), centerP.Z());
+
+	CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
+	// centerP.Z() = centerP.Z() * ratio;
+	centerP.Z() = maxZ;
+	vi->P() = centerP;
+	vi->C() = vcg::Color4b(0, 255, 255, 255);
+	// CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertex(cm, centerP);
+
+	int prevI = -1;
+	int firstI = -1;
+	for (int idx: hole)
+	{
+		if (prevI == -1)
+		{
+			prevI = idx;
+			firstI = idx;
+			continue;
+		}
+
+		N_LOG_FILL_CENTER("new mesh point 1 x, y, z, index %i (%f, %f, %f)", cm.vert[prevI].P().X(), cm.vert[prevI].P().Y(), cm.vert[prevI].P().Z(), cm.vert[prevI].Index());
+		N_LOG_FILL_CENTER("new mesh point 2 x, y, z, index %i (%f, %f, %f)", cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z(), cm.vert[idx].Index());
+		N_LOG_FILL_CENTER("new mesh point 3 x, y, z, index %i (%f, %f, %f)", vi->P().X(), vi->P().Y(), vi->P().Z(), vi->Index());
+
+		// CMeshO::FaceIterator fi = vcg::tri::Allocator<CMeshO>::AddFaces(cm, 1);
+		// fi->V(0)=prevP;
+		// fi->V(1)=v;
+		// fi->V(2)=&*vi;
+		vcg::tri::Allocator<CMeshO>::AddFace(cm, prevI, idx, vi->Index());
+
+		prevI = idx;
+	}
+	if (firstI != -1) {
+		vcg::tri::Allocator<CMeshO>::AddFace(cm, firstI, prevI, vi->Index());
+	}
+
+	return;
+}
+
+void FillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, float ratio, Point3m centerP) {
+	if (hole.size() < 3) {
+        return;
+    }
+
+	if (hole.size() == 3) {
+		int firstIdx = cm.vert[hole[0]].Index();
+		int secondIdx = cm.vert[hole[1]].Index();
+		int thirdIdx = cm.vert[hole[2]].Index();
+		vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, secondIdx, thirdIdx);
+		return;
+	}
+
+	// Point3m centerP(0, 0, 0);
+	// float maxZ = cm.vert[hole[0]].P().Z();
+	// for (int idx: hole)
+	// {
+	// 	centerP += cm.vert[idx].P();
+	// 	qDebug("point x, y, z, index %i (%f, %f, %f)", cm.vert[idx].Index(), cm.vert[idx].P().X(), cm.vert[idx].P().Y(), cm.vert[idx].P().Z());
+	// 	if (cm.vert[idx].P().Z() > maxZ) {
+	// 		maxZ = cm.vert[idx].P().Z();
+	// 	}
+	// }
+	// centerP /= hole.size();
+	qDebug("hole center point x, y, z (%f, %f, %f) \n\n", centerP.X(), centerP.Y(), centerP.Z());
+
+	CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertices(cm, 1);
+	int centerIdx = vi->Index();
+	// centerP.Z() = centerP.Z() * ratio;
+	// centerP.Z() = maxZ;
+	vi->P() = centerP;
+	vi->C() = vcg::Color4b(0, 255, 255, 255);
+	// CMeshO::VertexIterator vi = vcg::tri::Allocator<CMeshO>::AddVertex(cm, centerP);
+
+	int prevI = -1;
+	int firstI = -1;
+	for (int i = 0; i < hole.size() - 1; i++)
+	{
+		int idx = hole[i];
+
+		int firstIdx = hole[i];
+		int secondIdx = hole[(i + 1) % hole.size()];
+		int thirdIdx = hole[(i + 2) % hole.size()];
+
+		float d13 = distance2Points(cm.vert[firstIdx].P(), cm.vert[thirdIdx].P());
+		float d1c = distance2Points(cm.vert[firstIdx].P(), centerP);
+		float d2c = distance2Points(cm.vert[secondIdx].P(), centerP);
+
+		float d21 = distance2Points(cm.vert[secondIdx].P(), cm.vert[firstIdx].P());
+		float d23 = distance2Points(cm.vert[secondIdx].P(), cm.vert[thirdIdx].P());
+
+		if (d13 < d2c && d2c > d1c && (d13 < d21*1.2 || d13 < d23*1.2)) {
+			// add face 13c, 123; i++
+			vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, thirdIdx, centerIdx);
+			cm.face.back().C() = vcg::Color4b::Gray;
+			vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, secondIdx, thirdIdx);
+			cm.face.back().C() = vcg::Color4b::Gray;
+
+			++i;
+			
+			if (i == hole.size() - 2) {
+				// add face 3c & first
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, hole[0], thirdIdx, centerIdx);
+				cm.face.back().C() = vcg::Color4b::Gray;
+			}
+		} else {
+			// add face 12c; continue
+			vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, secondIdx, centerIdx);
+			cm.face.back().C() = vcg::Color4b::Gray;
+			if (i == hole.size() - 2) {
+				// add face 23c
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, secondIdx, thirdIdx, centerIdx);
+				cm.face.back().C() = vcg::Color4b::Gray;
+			}
+		}
+	}
+
+	return;
+}
+
+void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vZChange, float adjustRatio)
 {
 	// if (hole.size() == 0) 
 	// {
@@ -437,7 +432,7 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 	float factor = avgCenterDistance / startAvgEdge;
 
 	float centerZChange = calcCenterZChange(cm, centerPoint, startAvgEdge, hole, vZChange);
-	assert(centerZChange);
+	// assert(centerZChange);
     centerPoint.Z() = centerPoint.Z() + centerZChange;
 
 	while (true)
@@ -461,7 +456,7 @@ void fillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 		if (checkHoleSize(cm, hole, threshold, centerPoint) || maxStepCenter <= 1)
 		{
 			// fillHoleByCenter(cm, hole, avgEdge, 1);
-			fillHoleByCenterRefined(cm, hole, avgEdge, 1, centerPoint);
+            FillHoleByCenterRefined(cm, hole, avgEdge, 1, centerPoint);
 			break;
 		}
 

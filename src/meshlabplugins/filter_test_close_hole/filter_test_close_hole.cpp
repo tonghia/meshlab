@@ -375,8 +375,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		std::vector<tri::Hole<CMeshO>::Info> vinfo;
 		int borderVBit = CVertexO::NewBitFlag();
 		int expandedVBit = CVertexO::NewBitFlag();
-        std::vector<std::vector<int>> vholeI;
-        std::vector<std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float>> vholeInfo;
+        std::vector<std::vector<int>> vholeIdx;
 		std::vector<HoleVertInfo> vHoleVertInfo;
 		std::vector<std::vector<HoleVertData>> vHoleData;
 		std::vector<std::vector<int>> vHoleFaceIndex;
@@ -415,14 +414,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					// (*v2).C() = vcg::Color4b(255, 0, 255, 255);
 
 					N_LOG_FIND_VERT("Hole %i detected \n", vinfo.size() + 1);
-					std::vector<CVertexO*> vBorderVertex;
 					std::vector<int> vBorderIndex;
 					std::vector<float> vDistanceVert;
-					std::vector<float> vRatio;
-					float totalZ = 0;
-					int countZ = 0;
-					float totalExpandZ = 0;
-					int countExpandZ = 0;
 					Point3m prevPoint = sp.v->P();
 					bool hasPrevP = true;
 					std::vector<int> vFaceIndex;					
@@ -448,12 +441,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 						sp.v->SetUserBit(borderVBit);
 						CVertexO* expandedFP = sp.f->V2(sp.z);
 
-						totalZ += sp.v->P().Z();
-						++countZ;
 						if (!expandedFP->IsUserBit(expandedVBit)) {
 							// expandedFP->C() = vcg::Color4b(255, 255, 0, 255);
-							totalExpandZ += expandedFP->P().Z();
-							++countExpandZ;
 						}
 
 						N_LOG_FIND_VERT("Border Vertex index %i coord (x, y, z): (%f, %f, %f) index %d \n", 
@@ -466,9 +455,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 						int vIndex = sp.v->Index();
 
 						// qDebug("Border Vertex index %i coord (x, y, z): (%f, %f, %f) \n", vIndex, sp.v->P().X(), sp.v->P().Y(), sp.v->P().Z());
-						vBorderVertex.push_back(sp.v);
 						vBorderIndex.push_back(sp.v->Index());
-						vRatio.push_back(zChange);
 						vFaceIndex.push_back(sp.f->Index());
 						vertInfo.vHoleVertIndex.push_back(sp.v->Index());
 						// vertInfo.vZChange.push_back(zChange);
@@ -495,14 +482,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					// vDistanceVert.push_back(distance2Points(sp.v->P(), prevPoint));
 
 					qDebug("End hole point log");
-					vholeI.push_back(vBorderIndex);
-					float averageZRatio = (totalZ/countZ) / (totalExpandZ/countExpandZ);
-					if (averageZRatio != averageZRatio) {
-						averageZRatio = 1;
-					}
+					vholeIdx.push_back(vBorderIndex);
 					vHoleVertInfo.push_back(vertInfo);
-					// assert(averageZRatio == averageZRatio);
-					vholeInfo.push_back(std::make_tuple(vBorderIndex, vDistanceVert, vRatio, averageZRatio));
 					vHoleData.push_back(vHoleVertData);
 					vHoleFaceIndex.push_back(vFaceIndex);
 
@@ -515,21 +496,15 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 		if (enableBorderColor)
 		{
-            for (std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float> hole: vholeInfo)
+			for (std::vector<int> hole: vholeIdx) 
 			{
-				std::vector<int> vVertIndex;
-				std::vector<float> vDistance;
-				std::vector<float> vRatio;
-                float avgZRatio;
-                tie(vVertIndex, vDistance, vRatio, avgZRatio) = hole;
-
-				if (maxHoleSize > 0 && vVertIndex.size() > maxHoleSize) {
+				if (maxHoleSize > 0 && hole.size() > maxHoleSize) {
 					continue;
 				}
 
-				for (int i = 0; i < vVertIndex.size(); i++)
+				for (int i = 0; i < hole.size(); i++)
 				{
-                    int vi = vVertIndex[i];
+                    int vi = hole[i];
 					cm.vert[vi].C() = vcg::Color4b(255, 0, 255, 255);
 				}
 			}
@@ -561,7 +536,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 						continue;
 					}
 
-					Point3m holeCenter = calcHoleCenter(cm, vVertIndex);
+					Point3m holeCenter = CalcHoleCenter(cm, vVertIndex);
 					// rotate the hole center to z-axis
 					Matrix44m transMt = rotateHoleCenter(md, holeCenter);
 
@@ -631,7 +606,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					// 	break;
 					// }
 
-                    fillHoleRingByRingRefined(cm, vVertIndex, holeThreshold, stepByStep, hole.vZChange, adjustRatio);
+                    FillHoleRingByRingRefined(cm, vVertIndex, holeThreshold, stepByStep, hole.vZChange, adjustRatio);
 
 					qDebug("End one hole filling");
 					// revert the rotation
@@ -643,37 +618,32 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 			case 1: 
 			{
-				for (std::vector<int> hole: vholeI) 
+				for (std::vector<int> hole: vholeIdx) 
 				{
 					if (maxHoleSize > 0 && hole.size() > maxHoleSize) {
 						continue;
 					}
 
 					// rotate the hole center to z-axis
-					Point3m holeCenter = calcHoleCenter(cm, hole);
+					Point3m holeCenter = CalcHoleCenter(cm, hole);
 					rotateHoleCenter(md, holeCenter);
 
 					// fill hole
-                    fillHoleByCenter(cm, hole, 0, 1);
+                    FillHoleByCenter(cm, hole, 0, 1);
 				}
 			} // end case 1
 				break;
 
 			case 2:
 			{
-				for (std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float> hole: vholeInfo)
+				for (std::vector<int> hole: vholeIdx) 
 				{
-					std::vector<int> vVertIndex;
-					std::vector<float> vDistance;
-					std::vector<float> vRatio;
-					float avgZRatio;
-					tie(vVertIndex, vDistance, vRatio, avgZRatio) = hole;
-                    if (maxHoleSize > 0 && vVertIndex.size() > maxHoleSize) {
+					if (maxHoleSize > 0 && hole.size() > maxHoleSize) {
 						continue;
 					}
-					float avgDistance = calcAvgDistance(vDistance);
 
-					Point3m holeCenter = calcHoleCenter(cm, vVertIndex);
+					// rotate the hole center to z-axis
+					Point3m holeCenter = CalcHoleCenter(cm, hole);
 					rotateHoleCenter(md, holeCenter);
 				}
 			}
@@ -685,23 +655,19 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				QString text = "";
 
 				int count = 0;
-				for (std::tuple<std::vector<int>, std::vector<float>, std::vector<float>, float> hole: vholeInfo)
+				for (std::vector<int> hole: vholeIdx) 
 				{
-					std::vector<int> vVertIndex;
-					std::vector<float> vDistance;
-					std::vector<float> vRatio;
-					float avgZRatio;
-					tie(vVertIndex, vDistance, vRatio, avgZRatio) = hole;
-                    if (maxHoleSize > 0 && vVertIndex.size() > maxHoleSize) {
+					if (maxHoleSize > 0 && hole.size() > maxHoleSize) {
 						continue;
 					}
-					float avgDistance = calcAvgDistance(vDistance);
-                    Point3m holeCenter = calcHoleCenter(cm, vVertIndex);
+
+					float avgDistance = CalcAvgHoleEdge(cm, hole);
+                    Point3m holeCenter = CalcHoleCenter(cm, hole);
 
 					++count;
-					log("Hole number %i size %i average edge %f centroid point C(%f, %f, %f)", count, vVertIndex.size(), avgDistance, holeCenter.X(), holeCenter.Y(), holeCenter.Z());
+					log("Hole number %i size %i average edge %f centroid point C(%f, %f, %f)", count, hole.size(), avgDistance, holeCenter.X(), holeCenter.Y(), holeCenter.Z());
 					text.append(QString("Hole number %1 size %2 average edge %3 centroid point C(%4, %5, %6) \n").arg(
-						QString::number(count), QString::number(vVertIndex.size()), QString::number(avgDistance), 
+                        QString::number(count), QString::number(hole.size()), QString::number(avgDistance),
 						QString::number(holeCenter.X()), QString::number(holeCenter.Y()), QString::number(holeCenter.Z())
 						));
 				}
