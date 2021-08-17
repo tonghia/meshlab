@@ -52,19 +52,6 @@ QString PointToQString(Point3m p) {
 	return QString("(x, y, z) - (%1, %2, %3)").arg(QString::number(p.X()), QString::number(p.Y()), QString::number(p.Z()));
 }
 
-Point3m findHoleCenterPoint(CMeshO& cm, std::vector<int> hole)
-{
-	assert(hole.size() > 0);
-
-	Point3m centerPoint(0, 0, 0);
-	for (int idx: hole)
-	{
-		centerPoint += cm.vert[idx].P();
-	}
-
-	return centerPoint / hole.size();
-}
-
 float CalcAvgHoleEdge(CMeshO& cm, std::vector<int> hole)
 {
 	if (hole.size() == 0) 
@@ -418,18 +405,19 @@ void FillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, flo
 	return;
 }
 
-void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vZChange, float adjustRatio)
+void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvgEdge, Point3m holeCenter, bool stepByStep, std::vector<float> vZChange, float adjustRatio)
 {
 	// if (hole.size() == 0) 
 	// {
 	// 	return;
 	// }
 
-    Point3m centerPoint = findHoleCenterPoint(cm, hole);
+    // Point3m centerPoint = findHoleCenterPoint(cm, hole);
+	Point3m centerPoint = holeCenter;
 
-	float avgCenterDistance = calcAvgDistanceToCenter(cm, hole, centerPoint);
-	float startAvgEdge = CalcAvgHoleEdge(cm, hole);
-	float factor = avgCenterDistance / startAvgEdge;
+	// float avgCenterDistance = calcAvgDistanceToCenter(cm, hole, centerPoint);
+	// float startAvgEdge = CalcAvgHoleEdge(cm, hole);
+	// float factor = avgCenterDistance / startAvgEdge;
 
 	float centerZChange = calcCenterZChange(cm, centerPoint, startAvgEdge, hole, vZChange);
 	// assert(centerZChange);
@@ -444,7 +432,7 @@ void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 			break;
 		}
 
-		hole = reduceHoleByConnectNearby(cm, hole, threshold, centerPoint);
+		hole = reduceHoleByConnectNearby(cm, hole, startAvgEdge, centerPoint);
 		hole = rearrangeHole(cm, centerPoint, startAvgEdge, hole);
 
 		float avgEdge = CalcAvgHoleEdge(cm, hole);
@@ -453,7 +441,7 @@ void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshol
 		int maxStepCenter = findMaxStepToCenter(cm, centerPoint, avgEdge, hole);
 		
 		// if (avgEdge < threshold)
-		if (checkHoleSize(cm, hole, threshold, centerPoint) || maxStepCenter <= 1)
+		if (checkHoleSize(cm, hole, startAvgEdge, centerPoint) || maxStepCenter <= 1)
 		{
 			// fillHoleByCenter(cm, hole, avgEdge, 1);
             FillHoleByCenterRefined(cm, hole, avgEdge, 1, centerPoint);

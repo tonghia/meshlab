@@ -540,6 +540,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					// rotate the hole center to z-axis
 					Matrix44m transMt = rotateHoleCenter(md, holeCenter);
 
+					holeCenter = CalcHoleCenter(cm, vVertIndex); // re-calc after rotate
+
 					// compute z-change
 					std::vector<float> vZChange2;
 					for (int i = 0; i < vVertIndex.size(); i++) {
@@ -596,17 +598,17 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					if (edgeLength <= 0) {
 						edgeLength = CalcAvgHoleEdge(cm, vVertIndex);
 					}
-					float holeThreshold = edgeLength * thresholdRatio;
-					if (holeThreshold <= 0) {
-                        holeThreshold = edgeLength;
-					} 
+					// float holeThreshold = edgeLength * thresholdRatio;
+					// if (holeThreshold <= 0) {
+                    //     holeThreshold = edgeLength;
+					// } 
 					bool stepByStep = isOneRing;
-					qDebug("start one hole filling with threshold %f", holeThreshold);
+                    // qDebug("start one hole filling with threshold %f", holeThreshold);
 					// if (stop) {
 					// 	break;
 					// }
 
-                    FillHoleRingByRingRefined(cm, vVertIndex, holeThreshold, stepByStep, hole.vZChange, adjustRatio);
+                    FillHoleRingByRingRefined(cm, vVertIndex, edgeLength, holeCenter, stepByStep, hole.vZChange, adjustRatio);
 
 					qDebug("End one hole filling");
 					// revert the rotation

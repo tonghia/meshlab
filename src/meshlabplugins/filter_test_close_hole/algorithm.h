@@ -17,7 +17,6 @@ struct HoleVertData {
 float distance2Points(Point3m p1, Point3m p2);
 Point3m calcAvgPoint(std::vector<int> vIndex, CMeshO& cm);
 const char* pointToString(Point3m p);
-Point3m findHoleCenterPoint(CMeshO& cm, std::vector<int> hole);
 float calcAvgDistanceToCenter(CMeshO& cm, std::vector<int> hole, Point3m centerPoint);
 bool checkHoleSize(CMeshO& cm, std::vector<int> hole, float threshold, Point3m centerPoint);
 Point3m calcFillingPoint(Point3m boundaryPoint, Point3m centerPoint, float avgEdge, float ratio);
@@ -36,4 +35,4 @@ float CalcAvgHoleEdge(CMeshO& cm, std::vector<int> hole);
 // Fill hole algorithm
 void FillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float ratio);
 void FillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, float ratio);
-void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float threshold, bool stepByStep, std::vector<float> vZChange, float adjustRatio);
+void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvgEdge, Point3m holeCenter, bool stepByStep, std::vector<float> vZChange, float adjustRatio);
