@@ -27,6 +27,7 @@ int findStepToCenter(Point3m center, Point3m boundary, float avgEdge, float&);
 int findMaxStepToCenter(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole);
 std::vector<int> rearrangeHole(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole);
 std::vector<int> reduceHoleByConnectNearby(CMeshO& cm, std::vector<int> hole, float avgEdge, Point3m center);
+float calcCenterZChange(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<float> vZChange);
 
 Point3m CalcHoleCenter(CMeshO& cm, std::vector<int> hole);
 QString PointToQString(Point3m p);

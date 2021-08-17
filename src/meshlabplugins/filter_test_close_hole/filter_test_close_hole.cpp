@@ -608,6 +608,9 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					// 	break;
 					// }
 
+					float centerZChange = calcCenterZChange(cm, holeCenter, edgeLength, vVertIndex, hole.vZChange);
+					holeCenter.Z() = holeCenter.Z() + centerZChange;
+
                     FillHoleRingByRingRefined(cm, vVertIndex, edgeLength, holeCenter, stepByStep, hole.vZChange, adjustRatio);
 
 					qDebug("End one hole filling");

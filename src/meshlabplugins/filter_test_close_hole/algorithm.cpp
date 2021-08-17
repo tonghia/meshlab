@@ -419,9 +419,9 @@ void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvg
 	// float startAvgEdge = CalcAvgHoleEdge(cm, hole);
 	// float factor = avgCenterDistance / startAvgEdge;
 
-	float centerZChange = calcCenterZChange(cm, centerPoint, startAvgEdge, hole, vZChange);
+	// float centerZChange = calcCenterZChange(cm, centerPoint, startAvgEdge, hole, vZChange);
 	// assert(centerZChange);
-    centerPoint.Z() = centerPoint.Z() + centerZChange;
+    // centerPoint.Z() = centerPoint.Z() + centerZChange;
 
 	while (true)
 	{
