@@ -170,6 +170,33 @@ float calcCenterZChange(CMeshO& cm, Point3m center, float avgEdge, std::vector<i
     return (totalZChange / count) * minFactor;
 }
 
+Point3m CalcCenterChange(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<Point3m> expHole) {
+
+	int count = 0;
+	Point3m totalChange(0, 0, 0);
+	int minFactor = 59999;
+	for (int i = 0; i < hole.size(); i++) {
+		int bindex = hole[i];
+		Point3m bvertex = cm.vert[bindex].P();
+		Point3m cChange = expHole[i];
+
+		float d = distance2Points(bvertex, center);
+		float factor = d / avgEdge;
+		int roundFactor = round(factor);
+
+		if (roundFactor < minFactor) {
+			minFactor = roundFactor;
+			totalChange = cChange;
+			count = 1;
+		} else {
+			totalChange += cChange;
+			++count;
+		}
+	}
+
+    return (totalChange / count) * minFactor;
+}
+
 int findStepToCenter(Point3m center, Point3m boundary, float avgEdge, float & dRatio) {
 	// avgEdge *= 0.866;
 	float d = distance2Points(center, boundary);
@@ -267,6 +294,42 @@ std::vector<int> reduceHoleByConnectNearby(CMeshO& cm, std::vector<int> hole, fl
 
 	// return reducedHole;
 	return cHole;
+}
+
+float DistanceVector(Point3m p) {
+	return sqrt(pow(p.X(), 2) + pow(p.Y(), 2) + pow(p.Z(), 2));
+}
+
+float CalcCenterZChangeUsingExpVertex(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<int> expHole) {
+	// 1. each boundary - ratio, check distance to center d, factor to center = d/avgEdge, rounded factor
+	// 2. only get min rounded factor, total factor, count factor
+	// 3. average of 2 is result
+	int count = 0;
+	float totalZChange = 0;
+	int minFactor = 59999;
+	for (int i = 0; i < hole.size(); i++) {
+		int bindex = hole[i];
+		Point3m bvertex = cm.vert[bindex].P();
+		int expIdx = expHole[i];
+		Point3m evertex = cm.vert[expIdx].P();
+
+		float zChange = bvertex.Z() - evertex.Z();
+
+		float d = distance2Points(bvertex, center);
+		float factor = d / avgEdge;
+		int roundFactor = round(factor);
+
+		if (roundFactor < minFactor) {
+			minFactor = roundFactor;
+			totalZChange = zChange;
+			count = 1;
+		} else {
+			totalZChange += zChange;
+			++count;
+		}
+	}
+
+    return (totalZChange / count) * minFactor;
 }
 
 void FillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float ratio)

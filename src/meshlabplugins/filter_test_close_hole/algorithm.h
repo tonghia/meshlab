@@ -1,5 +1,6 @@
 struct HoleVertInfo {
 	std::vector<int> vHoleVertIndex;
+	std::vector<int> vExpHoleVertIndex;
 	std::vector<std::vector<int>> vSetExpVertIndex;
 	std::vector<Point3m> vExpPoint;
 	std::vector<float> vZChange;
@@ -32,6 +33,9 @@ float calcCenterZChange(CMeshO& cm, Point3m center, float avgEdge, std::vector<i
 Point3m CalcHoleCenter(CMeshO& cm, std::vector<int> hole);
 QString PointToQString(Point3m p);
 float CalcAvgHoleEdge(CMeshO& cm, std::vector<int> hole);
+float DistanceVector(Point3m);
+Point3m CalcCenterChange(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<Point3m> expHole);
+float CalcCenterZChangeUsingExpVertex(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<int> expHole);
 
 // Fill hole algorithm
 void FillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float ratio);
