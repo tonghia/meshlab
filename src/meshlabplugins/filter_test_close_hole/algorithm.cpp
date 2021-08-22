@@ -555,7 +555,7 @@ void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvg
 				skipPrev = true;
 
 				if (index == hole.back()) {
-					vcg::tri::Allocator<CMeshO>::AddFace(cm, firstFillIndex, index, prevFilledIndex);
+					vcg::tri::Allocator<CMeshO>::AddFace(cm, firstFillIndex, prevFilledIndex, index);
 					cm.face.back().C() = vcg::Color4b::Yellow;
 					reducedHole.push_back(firstFillIndex);
 				} else {
@@ -599,7 +599,7 @@ void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvg
 			if (checkCurrPointEdgeOk(fillPoint, cm.vert[index].P(), cm.vert[prevFilledIndex].P(), cm.vert[prevIndex].P())) {
 				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, fillIndex);
 				cm.face.back().C() = vcg::Color4b::Green;
-				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, prevFilledIndex, fillIndex);
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, fillIndex, prevFilledIndex);
 				cm.face.back().C() = vcg::Color4b::Green;
 			} else {
 				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, prevFilledIndex);
