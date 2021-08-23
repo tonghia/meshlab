@@ -289,7 +289,7 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 		algoType.push_back("Test slope");
 		parlst.addParam(RichEnum("algo", 0, algoType, tr("Algorithm type"), tr("Choose the algorithm to close hole")));
 		// parlst.addParam(RichPoint3f("hole_centroid", Point3f(0,0,0), "Centroid point", "Centroid point of a hole for running step by step"));
-        parlst.addParam(RichFloat("expect_edge_length", 0, "Boundary edge length", "If value = 0 then expected edge length is the average hole edges"));
+        // parlst.addParam(RichFloat("expect_edge_length", 0, "Boundary edge length", "If value = 0 then expected edge length is the average hole edges"));
         // parlst.addParam(RichFloat("threshold_ratio", 1.0, "Threshold ratio", "Threshold = Threhold ratio * Expected edge length"));
 		// parlst.addParam(RichDynamicFloat("adjust_ratio", 0.0f, 0.0f, 1.0f, "Adjustment z-coordinate ratio", "Adjustment ratio to adjust z-coordinate when filling new points"));
         parlst.addParam(RichInt("max_hole_size", int(0), "Max hole size", "Size of a hole is the number of boundary face of that hole"));
@@ -372,7 +372,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		bool enableBorderColor = par.getBool("enable_border_color");
 		// Point3m ucentroid = par.getPoint3m("hole_centroid");
 		Point3m ucentroid(0, 0, 0);
-		float expectedEdgeLength = par.getFloat("expect_edge_length");
+		// float expectedEdgeLength = par.getFloat("expect_edge_length");
+		float expectedEdgeLength = 0;
 		// float thresholdRatio = par.getFloat("threshold_ratio");
 		float thresholdRatio = 1;
 		// float adjustRatio = par.getFloat("adjust_ratio");

@@ -22,7 +22,6 @@ float calcAvgDistanceToCenter(CMeshO& cm, std::vector<int> hole, Point3m centerP
 bool checkHoleSize(CMeshO& cm, std::vector<int> hole, float threshold, Point3m centerPoint);
 Point3m calcFillingPoint(Point3m boundaryPoint, Point3m centerPoint, float avgEdge, float ratio);
 bool checkCurrPointEdgeOk(Point3m curFill, Point3m curBoundary, Point3m prevFill, Point3m prevBoundary);
-bool checkNewPrevPointDistance(Point3m newFill, Point3m prevFill, float threshold);
 float calcCenterRatio(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<float> vratio);
 int findStepToCenter(Point3m center, Point3m boundary, float avgEdge, float&);
 int findMaxStepToCenter(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole);

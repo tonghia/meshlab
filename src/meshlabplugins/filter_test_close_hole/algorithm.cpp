@@ -135,12 +135,6 @@ bool checkCurrPointEdgeOk(Point3m curFill, Point3m curBoundary, Point3m prevFill
 	return dCurr < dPrev;
 }
 
-bool checkNewPrevPointDistance(Point3m newFill, Point3m prevFill, float threshold) {
-	float d = distance2Points(newFill, prevFill);
-
-	return d > threshold;
-}
-
 float calcCenterZChange(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<float> vZChange) {
 	// 1. each boundary - ratio, check distance to center d, factor to center = d/avgEdge, rounded factor
 	// 2. only get min rounded factor, total factor, count factor
@@ -470,27 +464,10 @@ void FillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, flo
 
 void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvgEdge, Point3m holeCenter, bool stepByStep, std::vector<float> vZChange, float adjustRatio)
 {
-	// if (hole.size() == 0) 
-	// {
-	// 	return;
-	// }
-
-    // Point3m centerPoint = findHoleCenterPoint(cm, hole);
 	Point3m centerPoint = holeCenter;
-
-	// float avgCenterDistance = calcAvgDistanceToCenter(cm, hole, centerPoint);
-	// float startAvgEdge = CalcAvgHoleEdge(cm, hole);
-	// float factor = avgCenterDistance / startAvgEdge;
-
-	// float centerZChange = calcCenterZChange(cm, centerPoint, startAvgEdge, hole, vZChange);
-	// assert(centerZChange);
-    // centerPoint.Z() = centerPoint.Z() + centerZChange;
 
 	while (true)
 	{
-		// Point3m centerPoint = findHoleCenterPoint(cm, hole);
-		// float centerZChange = calcCenterZChange(cm, centerPoint, startAvgEdge, hole, vRatio);
-    	// centerPoint.Z() = centerPoint.Z() + centerZChange;
 		if (hole.size() < 3) {
 			break;
 		}
@@ -530,7 +507,6 @@ void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvg
 		for (int i = 0; i < hole.size(); i++)
 		{
 			int index = hole[i];
-			// float ratio = vRatio[i]; // TODO: remove
 			// if (cm.vert[index].P().Z() > centerPoint.Z()) {
 			// 	cm.vert[index].C() = vcg::Color4b::Red;
 			// 	qDebug("border z %f center z %f", cm.vert[index].P().Z(), centerPoint.Z());
@@ -584,14 +560,6 @@ void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvg
 				vi->P() = fillPoint;
 				vi->C() = vcg::Color4b(0, 255, 255, 255);
 				fillIndex = vi->Index();
-
-				// check distance with new and prev fill points
-				// if (!checkNewPrevPointDistance(fillPoint, cm.vert[prevFilledIndex].P(), threshold)) {
-				// 	vcg::tri::Allocator<CMeshO>::AddFace(cm, prevFilledIndex, index, prevIndex);
-				// 	prevIndex = index;
-				// 	cm.vert[index].C() = vcg::Color4b(255, 255, 0, 255);
-				// 	continue;
-				// }
 			} else {
 				fillIndex = firstFillIndex;
 			}
