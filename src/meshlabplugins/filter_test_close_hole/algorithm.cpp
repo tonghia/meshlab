@@ -444,7 +444,7 @@ void FillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, flo
 			
 			if (i == hole.size() - 2) {
 				// add face 3c & first
-				vcg::tri::Allocator<CMeshO>::AddFace(cm, hole[0], thirdIdx, centerIdx);
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, hole[0], centerIdx, thirdIdx);
 				cm.face.back().C() = vcg::Color4b::Gray;
 			}
 		} else {
@@ -475,7 +475,8 @@ void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvg
 		hole = reduceHoleByConnectNearby(cm, hole, startAvgEdge, centerPoint);
 		hole = rearrangeHole(cm, centerPoint, startAvgEdge, hole);
 
-		float avgEdge = CalcAvgHoleEdge(cm, hole);
+		// float avgEdge = CalcAvgHoleEdge(cm, hole);
+		float avgEdge = startAvgEdge;
 		
 		// init check step to center
 		int maxStepCenter = findMaxStepToCenter(cm, centerPoint, avgEdge, hole);
