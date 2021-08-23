@@ -523,21 +523,22 @@ void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvg
 			if (stepCenter < maxStepCenter) {
 				// reducedHole.push_back(index);
 				if (skipPrev) {
-					prevFilledIndex = prevIndex;
+					// prevFilledIndex = prevIndex;
 				} else {
 					vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, prevFilledIndex);
 					cm.face.back().C() = vcg::Color4b::Yellow;
 				}
-				prevIndex = index;
-				skipPrev = true;
 
 				if (index == hole.back()) {
-					vcg::tri::Allocator<CMeshO>::AddFace(cm, firstFillIndex, prevFilledIndex, index);
+                    vcg::tri::Allocator<CMeshO>::AddFace(cm, firstFillIndex, index, prevIndex);
 					cm.face.back().C() = vcg::Color4b::Yellow;
 					reducedHole.push_back(firstFillIndex);
 				} else {
 					reducedHole.push_back(index);
 				}
+
+                prevIndex = index;
+                skipPrev = true;
 
 				continue;
 			}
@@ -565,22 +566,28 @@ void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvg
 				fillIndex = firstFillIndex;
 			}
 			
-			if (checkCurrPointEdgeOk(fillPoint, cm.vert[index].P(), cm.vert[prevFilledIndex].P(), cm.vert[prevIndex].P())) {
-				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, fillIndex);
-				cm.face.back().C() = vcg::Color4b::Green;
-				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, fillIndex, prevFilledIndex);
-				cm.face.back().C() = vcg::Color4b::Green;
+			if (skipPrev) {
+				vcg::tri::Allocator<CMeshO>::AddFace(cm, index, fillIndex, prevIndex);
+				cm.face.back().C() = vcg::Color4b::Yellow;
+				skipPrev = false;
 			} else {
-				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, prevFilledIndex);
-				cm.face.back().C() = vcg::Color4b::Magenta;
-				vcg::tri::Allocator<CMeshO>::AddFace(cm, prevFilledIndex, index, fillIndex);
-				cm.face.back().C() = vcg::Color4b::Magenta;
+				if (checkCurrPointEdgeOk(fillPoint, cm.vert[index].P(), cm.vert[prevFilledIndex].P(), cm.vert[prevIndex].P())) {
+					vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, fillIndex);
+					cm.face.back().C() = vcg::Color4b::Green;
+					vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, fillIndex, prevFilledIndex);
+					cm.face.back().C() = vcg::Color4b::Green;
+				} else {
+					vcg::tri::Allocator<CMeshO>::AddFace(cm, prevIndex, index, prevFilledIndex);
+					cm.face.back().C() = vcg::Color4b::Magenta;
+					vcg::tri::Allocator<CMeshO>::AddFace(cm, prevFilledIndex, index, fillIndex);
+					cm.face.back().C() = vcg::Color4b::Magenta;
+				}
 			}
 
-			if (skipPrev) {
-				reducedHole.pop_back();
-				skipPrev = false;
-			}
+			// if (skipPrev) {
+			// 	reducedHole.pop_back();
+			// 	skipPrev = false;
+			// }
 
 			reducedHole.push_back(fillIndex);
 
