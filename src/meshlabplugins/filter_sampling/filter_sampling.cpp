@@ -367,8 +367,15 @@ FilterDocSampling::FilterDocSampling()
 		FP_POINTCLOUD_SIMPLIFICATION
 	};
 
-	for(ActionIDType tt: types())
-		actionList.push_back(new QAction(filterName(tt), this));
+	for(ActionIDType tt: types()) {
+		QAction *act = new QAction(filterName(tt), this);
+        actionList.push_back(act);
+
+		if (tt == FP_HAUSDORFF_DISTANCE)
+		{
+			act->setShortcut(QKeySequence ("Alt+1"));
+		}
+	}
 }
 
 QString FilterDocSampling::pluginName() const
