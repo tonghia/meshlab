@@ -628,7 +628,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					holeCenter.Z() = holeCenter.Z() + centerZChange;
 					log("Center hole after change z (x, y, z) = (%f, %f, %f) and dz %f", holeCenter.X(), holeCenter.Y(), holeCenter.Z(), centerZChange);
 
-                    FillHoleRingByRingRefined(cm, vVertIndex, edgeLength, holeCenter, stepByStep, hole.vZChange, adjustRatio);
+                    FillHoleRingByRingRefined(cm, vVertIndex, edgeLength, holeCenter, stepByStep, centerZChange, adjustRatio);
 
 					// revert the rotation
 					rotateInverse(md, transMt);
@@ -780,7 +780,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					Point3m centerChange = CalcCenterChange(cm, holeCenter, edgeLength, vVertIndex, hole.vExpPoint);
 					holeCenter = holeCenter + centerChange;
 
-                    FillHoleRingByRingRefined(cm, vVertIndex, edgeLength, holeCenter, stepByStep, hole.vZChange, adjustRatio);
+                    FillHoleRingByRingRefined(cm, vVertIndex, edgeLength, holeCenter, stepByStep, 0.0, adjustRatio);
 
 					qDebug("End one hole filling");
 				}

@@ -39,4 +39,4 @@ float CalcCenterZChangeUsingExpVertex(CMeshO& cm, Point3m center, float avgEdge,
 // Fill hole algorithm
 void FillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float ratio);
 void FillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, float ratio);
-void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvgEdge, Point3m holeCenter, bool stepByStep, std::vector<float> vZChange, float adjustRatio);
+void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvgEdge, Point3m holeCenter, bool stepByStep, float zChange, float adjustRatio);
