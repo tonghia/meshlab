@@ -79,15 +79,15 @@ FilterBezier2Plugin::FilterBezier2Plugin()
         QAction *act = new QAction(filterName(tt), this);
         actionList.push_back(act);
 
-        if (app != nullptr)
-        {
-            if (tt == TEST_BEZIER2)
-            {
+        // if (app != nullptr)
+        // {
+            // if (tt == TEST_BEZIER2)
+            // {
                 //				act->setShortcut(QKeySequence ("Ctrl+Del"));
-                act->setIcon(QIcon(":/images/3d-icon-1.png"));
+                // act->setIcon(QIcon(":/images/3d-icon-1.png"));
                 //				act->setPriority(QAction::HighPriority);
-            }
-        }
+            // }
+        // }
     }
 }
 
