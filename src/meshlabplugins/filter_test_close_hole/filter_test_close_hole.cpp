@@ -384,12 +384,11 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		bool isOneRing = false;
 		bool preventRotate = par.getBool("prevent_rotate");
 
-		std::vector<tri::Hole<CMeshO>::Info> vinfo;
 		int borderVBit = CVertexO::NewBitFlag();
 		int expandedVBit = CVertexO::NewBitFlag();
         std::vector<std::vector<int>> vholeIdx;
 		std::vector<HoleVertInfo> vHoleVertInfo;
-		std::vector<std::vector<HoleVertData>> vHoleData;
+		// std::vector<std::vector<HoleVertData>> vHoleData;
 		std::vector<std::vector<int>> vHoleFaceIndex;
 
 		// clear Visited flag for all face in mesh
@@ -417,7 +416,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					(*fi).SetV();
 					tri::Hole<CMeshO>::PosType sp(&*fi, j, (*fi).V(j));
 					tri::Hole<CMeshO>::PosType fp=sp;
-					int holesize=0;
+					// int holesize=0;
 
 					// (*fi).C() = vcg::Color4b(255, 0, 255, 255);
 					// CVertexO* v1 = (*fi).V(j);
@@ -425,25 +424,22 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					// CVertexO* v2 = (*fi).V((j + 1) % 3);
 					// (*v2).C() = vcg::Color4b(255, 0, 255, 255);
 
-					N_LOG_FIND_VERT("Hole %i detected \n", vinfo.size() + 1);
+					N_LOG_FIND_VERT("Hole %i detected \n", vHoleVertInfo.size() + 1);
 					std::vector<int> vBorderIndex;
-					std::vector<float> vDistanceVert;
-					Point3m prevPoint = sp.v->P();
-					bool hasPrevP = true;
 					std::vector<int> vFaceIndex;					
-					float ratio = 0;
+					// float ratio = 0;
 					HoleVertInfo vertInfo;
-					std::vector<HoleVertData> vHoleVertData;
+					// std::vector<HoleVertData> vHoleVertData;
 
-					tri::Hole<CMeshO>::Box3Type hbox;
-					hbox.Add(sp.v->cP());
+					// tri::Hole<CMeshO>::Box3Type hbox;
+					// hbox.Add(sp.v->cP());
 
 					sp.f->SetV();
 					do
 					{
 						sp.f->SetV();
-						hbox.Add(sp.v->cP());
-						++holesize;
+						// hbox.Add(sp.v->cP());
+						// ++holesize;
 						sp.NextB();
 						sp.f->SetV();
 
@@ -453,18 +449,16 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 						sp.v->SetUserBit(borderVBit);
 						CVertexO* expandedFP = sp.f->V2(sp.z);
 
-						if (!expandedFP->IsUserBit(expandedVBit)) {
+						// if (!expandedFP->IsUserBit(expandedVBit)) {
 							// expandedFP->C() = vcg::Color4b(255, 255, 0, 255);
-						}
+						// }
 
 						N_LOG_FIND_VERT("Border Vertex index %i coord (x, y, z): (%f, %f, %f) index %d \n", 
 							sp.v->Index(), sp.v->P().X(), sp.v->P().Y(), sp.v->P().Z(), sp.v->Index());
 						N_LOG_FIND_VERT("Extended Vertex index %i coord (x, y, z): (%f, %f, %f) index %d \n", 
 							expandedFP->Index(), expandedFP->P().X(), expandedFP->P().Y(), expandedFP->P().Z(), expandedFP->Index());
 
-						float zChange = sp.v->P().Z() - expandedFP->P().Z();
-
-						int vIndex = sp.v->Index();
+						// int vIndex = sp.v->Index();
 
 						// qDebug("Border Vertex index %i coord (x, y, z): (%f, %f, %f) \n", vIndex, sp.v->P().X(), sp.v->P().Y(), sp.v->P().Z());
 						vBorderIndex.push_back(sp.v->Index());
@@ -472,36 +466,20 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 						vertInfo.vHoleVertIndex.push_back(sp.v->Index());
 						vertInfo.vExpHoleVertIndex.push_back(expandedFP->Index());
 						// vertInfo.vZChange.push_back(zChange);
-						std::vector<int> vExpVertIdx = getExpandedVertexIndex(sp.v);
-						vertInfo.vSetExpVertIndex.push_back(vExpVertIdx);
-						HoleVertData vData = { vIndex, vExpVertIdx, expandedFP->P() };
-						vHoleVertData.push_back(vData);
-
-						if (!hasPrevP) 
-						{
-							hasPrevP = true;
-							prevPoint = sp.v->P();
-						} else {
-							float d = distance2Points(sp.v->P(), prevPoint);
-							assert(d);
-							vDistanceVert.push_back(d);
-							// set prevP after calc distance
-							prevPoint = sp.v->P();
-						}
+						// std::vector<int> vExpVertIdx = getExpandedVertexIndex(sp.v);
+						// vertInfo.vSetExpVertIndex.push_back(vExpVertIdx);
+						// HoleVertData vData = { vIndex, vExpVertIdx, expandedFP->P() };
+						// vHoleVertData.push_back(vData);
 
 						assert(sp.IsBorder());
 					}while(sp != fp);
 
-					// vDistanceVert.push_back(distance2Points(sp.v->P(), prevPoint));
-
 					qDebug("End hole point log");
 					vholeIdx.push_back(vBorderIndex);
 					vHoleVertInfo.push_back(vertInfo);
-					vHoleData.push_back(vHoleVertData);
+					// vHoleData.push_back(vHoleVertData);
 					vHoleFaceIndex.push_back(vFaceIndex);
 
-					//I recovered the information on the whole hole
-					vinfo.push_back( tri::Hole<CMeshO>::Info(sp,holesize,hbox) );
 				}
 			}//end for edges of the triangle
 
@@ -559,52 +537,52 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 					// compute z-change
 					std::vector<float> vZChange2;
-					for (int i = 0; i < vVertIndex.size(); i++) {
-						int bIdx = vVertIndex[i];
+					// for (int i = 0; i < vVertIndex.size(); i++) {
+					// 	int bIdx = vVertIndex[i];
 
-						Point3m avgExpPoint(0, 0, 0);
-						int count = 0;
-						std::vector<int> vExpVertIdx = hole.vSetExpVertIndex[i];
-						if (vExpVertIdx.size() < 2) {
-							assert(false);
-                        } else if (vExpVertIdx.size() == 2) {
-                            avgExpPoint += (cm.vert[vExpVertIdx[0]].P() + cm.vert[vExpVertIdx[1]].P());
-							count = 2;
-						} else {
-							for (int expIdx: vExpVertIdx) {
-								// cm.vert[expIdx].C() = vcg::Color4b::Red;
-								if (cm.vert[expIdx].IsUserBit(borderVBit)) {
-									continue;
-								}
+					// 	Point3m avgExpPoint(0, 0, 0);
+					// 	int count = 0;
+					// 	std::vector<int> vExpVertIdx = hole.vSetExpVertIndex[i];
+					// 	if (vExpVertIdx.size() < 2) {
+					// 		assert(false);
+                    //     } else if (vExpVertIdx.size() == 2) {
+                    //         avgExpPoint += (cm.vert[vExpVertIdx[0]].P() + cm.vert[vExpVertIdx[1]].P());
+					// 		count = 2;
+					// 	} else {
+					// 		for (int expIdx: vExpVertIdx) {
+					// 			// cm.vert[expIdx].C() = vcg::Color4b::Red;
+					// 			if (cm.vert[expIdx].IsUserBit(borderVBit)) {
+					// 				continue;
+					// 			}
 
-								avgExpPoint += cm.vert[expIdx].P();
-								++count;
-							}
-						}
-                        // assert(count);
+					// 			avgExpPoint += cm.vert[expIdx].P();
+					// 			++count;
+					// 		}
+					// 	}
+                    //     // assert(count);
 
-                        if (count == 0) {
-                            for (int expIdx: vExpVertIdx) {
+                    //     if (count == 0) {
+                    //         for (int expIdx: vExpVertIdx) {
 
-                                avgExpPoint += cm.vert[expIdx].P();
-                                ++count;
-                            }
-                        }
-						// if (count == 0) {
-						// 	cm.vert[bIdx].C() = vcg::Color4b::Red;
-						// 	stop = true;
-						// 	break;
-						// }
-						avgExpPoint /= count;
-						float zChange = cm.vert[bIdx].P().Z() - avgExpPoint.Z();
-						// assert(zChange == zChange);
-						vZChange2.push_back(zChange);
-						hole.vExpPoint.push_back(avgExpPoint);
-						// Point3m bPoint = cm.vert[bIdx].P();
-						// float dxy = sqrt( pow(avgExpPoint.X() - bPoint.X(), 2) + pow(avgExpPoint.Y() - bPoint.Y(), 2) );
-						// float sl = zChange / dxy;
-						// hole.vSlope.push_back(sl);
-					}
+                    //             avgExpPoint += cm.vert[expIdx].P();
+                    //             ++count;
+                    //         }
+                    //     }
+					// 	// if (count == 0) {
+					// 	// 	cm.vert[bIdx].C() = vcg::Color4b::Red;
+					// 	// 	stop = true;
+					// 	// 	break;
+					// 	// }
+					// 	avgExpPoint /= count;
+					// 	float zChange = cm.vert[bIdx].P().Z() - avgExpPoint.Z();
+					// 	// assert(zChange == zChange);
+					// 	vZChange2.push_back(zChange);
+					// 	hole.vExpPoint.push_back(avgExpPoint);
+					// 	// Point3m bPoint = cm.vert[bIdx].P();
+					// 	// float dxy = sqrt( pow(avgExpPoint.X() - bPoint.X(), 2) + pow(avgExpPoint.Y() - bPoint.Y(), 2) );
+					// 	// float sl = zChange / dxy;
+					// 	// hole.vSlope.push_back(sl);
+					// }
                     // assert(hole.vZChange.size() == hole.vSlope.size());
 					// hole.vZChange = hole.vSlope;
 					// hole.vZChange = vZChange2;
@@ -624,7 +602,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					// }
 
 					// float centerZChange = calcCenterZChange(cm, holeCenter, edgeLength, vVertIndex, hole.vZChange);
-					float centerZChange = CalcCenterZChangeUsingExpVertex(cm, holeCenter, edgeLength, vVertIndex, hole.vExpHoleVertIndex);
+					// float centerZChange = CalcCenterZChangeUsingExpVertex(cm, holeCenter, edgeLength, vVertIndex, hole.vExpHoleVertIndex);
+					float centerZChange = CalcCenterZChangeUsingAvgExpVertex(cm, holeCenter, edgeLength, vVertIndex, hole.vExpHoleVertIndex);
 					holeCenter.Z() = holeCenter.Z() + centerZChange;
 					log("Center hole after change z (x, y, z) = (%f, %f, %f) and dz %f", holeCenter.X(), holeCenter.Y(), holeCenter.Z(), centerZChange);
 
@@ -810,7 +789,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				assert(0);
 		} // end switch
 
-        log("Found %i holes",vinfo.size());
+        log("Found %i holes", vHoleVertInfo.size());
 		break;
 	}
 

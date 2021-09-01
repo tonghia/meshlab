@@ -35,6 +35,7 @@ float CalcAvgHoleEdge(CMeshO& cm, std::vector<int> hole);
 float DistanceVector(Point3m);
 Point3m CalcCenterChange(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<Point3m> expHole);
 float CalcCenterZChangeUsingExpVertex(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<int> expHole);
+float CalcCenterZChangeUsingAvgExpVertex(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<int> expHole);
 
 // Fill hole algorithm
 void FillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float ratio);

@@ -326,6 +326,32 @@ float CalcCenterZChangeUsingExpVertex(CMeshO& cm, Point3m center, float avgEdge,
     return (totalZChange / count) * minFactor;
 }
 
+float CalcCenterZChangeUsingAvgExpVertex(CMeshO& cm, Point3m center, float avgEdge, std::vector<int> hole, std::vector<int> expHole) {
+
+	// int count = 0;
+	float totalBoundaryZ = 0;
+	float totalExpandZ = 0;
+	int minFactor = 59999;
+	for (int i = 0; i < hole.size(); i++) {
+		int bindex = hole[i];
+		Point3m bvertex = cm.vert[bindex].P();
+		totalBoundaryZ += bvertex.Z();
+		int expIdx = expHole[i];
+		Point3m evertex = cm.vert[expIdx].P();
+		totalExpandZ += evertex.Z();
+
+		float d = distance2Points(bvertex, center);
+		float factor = d / avgEdge;
+		int roundFactor = round(factor);
+
+		if (roundFactor < minFactor) {
+			minFactor = roundFactor;
+		}
+	}
+
+    return ((totalBoundaryZ - totalExpandZ) / hole.size()) * minFactor;
+}
+
 void FillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float ratio)
 {
     if (hole.size() <= 3) {
@@ -433,7 +459,7 @@ void FillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, flo
 		float d21 = distance2Points(cm.vert[secondIdx].P(), cm.vert[firstIdx].P());
 		float d23 = distance2Points(cm.vert[secondIdx].P(), cm.vert[thirdIdx].P());
 
-		if (d13 < d2c && d2c > d1c && (d13 < d21*1.2 || d13 < d23*1.2)) {
+		if (d13 < d2c && d2c > d1c && (d13 < d21 || d13 < d23)) {
 			// add face 13c, 123; i++
 			vcg::tri::Allocator<CMeshO>::AddFace(cm, firstIdx, thirdIdx, centerIdx);
 			cm.face.back().C() = vcg::Color4b::Gray;
