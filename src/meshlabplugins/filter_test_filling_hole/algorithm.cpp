@@ -579,10 +579,10 @@ void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvg
 					QString::number(cm.vert[index].P().X()), QString::number(cm.vert[index].P().Y()), QString::number(cm.vert[index].P().Z())
 				));
 				// fillPoint.Z() = cm.vert[index].P().Z() * 1.073515;
-				// if (stepCenter >= 2) {
-					// fillPoint.Z() += centerZChange * (dRatio - 1) * adjustRatio;
-					// qDebug("LogRatio During fill Border Vertex index %f \n", centerZChange * (dRatio - 1) * adjustRatio);
-				// }
+				if (stepCenter >= 2) {
+					fillPoint.Z() += zChange * (dRatio - 1) * adjustRatio;
+					qDebug("LogRatio During fill Border Vertex index %f \n", zChange * (dRatio - 1) * adjustRatio);
+				}
 				// float czChange = fillPoint.Z() - cm.vert[index].P().Z();
 				// fillPoint.Z() += czChange * adjustRatio;
 				vi->P() = fillPoint;

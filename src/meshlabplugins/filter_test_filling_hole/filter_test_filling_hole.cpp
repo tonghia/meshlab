@@ -291,7 +291,7 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 		// parlst.addParam(RichPoint3f("hole_centroid", Point3f(0,0,0), "Centroid point", "Centroid point of a hole for running step by step"));
         // parlst.addParam(RichFloat("expect_edge_length", 0, "Boundary edge length", "If value = 0 then expected edge length is the average hole edges"));
         // parlst.addParam(RichFloat("threshold_ratio", 1.0, "Threshold ratio", "Threshold = Threhold ratio * Expected edge length"));
-		// parlst.addParam(RichDynamicFloat("adjust_ratio", 0.0f, 0.0f, 1.0f, "Adjustment z-coordinate ratio", "Adjustment ratio to adjust z-coordinate when filling new points"));
+		parlst.addParam(RichDynamicFloat("adjust_ratio", 0.0f, 0.0f, 1.0f, "Adjustment z-coordinate ratio", "Adjustment ratio to adjust z-coordinate when filling new points"));
         parlst.addParam(RichInt("max_hole_size", int(0), "Max hole size", "Size of a hole is the number of boundary face of that hole"));
 		// optional flags
 		parlst.addParam(RichBool("selected", m.cm.sfn>0, "Apply algorithm with selected faces", "Only the holes with at least one of the boundary faces selected are applied"));
@@ -376,8 +376,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		float expectedEdgeLength = 0;
 		// float thresholdRatio = par.getFloat("threshold_ratio");
 		float thresholdRatio = 1;
-		// float adjustRatio = par.getFloat("adjust_ratio");
-		float adjustRatio = 0;
+		float adjustRatio = par.getFloat("adjust_ratio");
+		// float adjustRatio = 0;
         float maxHoleSize = par.getInt("max_hole_size");
 		bool selected = par.getBool("selected"); 
 		// bool isOneRing = par.getBool("one_ring");
