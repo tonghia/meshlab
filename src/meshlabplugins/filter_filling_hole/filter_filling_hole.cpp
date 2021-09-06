@@ -139,7 +139,6 @@ std::vector<int> getExpandedVertexIndex(CVertexO* vp) {
 FilterFillHolePlugin::FilterFillHolePlugin()
 {
 	typeList = {
-        FP_TEST_DP_CLOSE_HOLE,
 		FP_FILLING_HOLE
     };
 
@@ -170,7 +169,6 @@ FilterFillHolePlugin::FilterClass FilterFillHolePlugin::getClass(const QAction *
 {
 	switch (ID(a))
 	{
-	case FP_TEST_DP_CLOSE_HOLE: return FilterPlugin::NTest;
 	case FP_FILLING_HOLE: return FilterPlugin::Remeshing;
 
 	default: assert(0); return FilterPlugin::Generic;
@@ -189,8 +187,6 @@ QString FilterFillHolePlugin::filterName(ActionIDType filterId) const
 {
 	switch (filterId)
 	{
-	case FP_TEST_DP_CLOSE_HOLE:
-		return "Test ML close hole";
 	case FP_FILLING_HOLE:
 		return "Filling hole on mesh";
 	default:
@@ -208,8 +204,6 @@ QString FilterFillHolePlugin::filterInfo(ActionIDType filterId) const
 {
 	switch (filterId)
 	{
-	case FP_TEST_DP_CLOSE_HOLE:
-		return "Test close hole with Meshlab algorithm";
 	case FP_FILLING_HOLE:
 		return "Our proposed method for filling hole on mesh";
 	default:
@@ -225,8 +219,6 @@ int FilterFillHolePlugin::getPreConditions(const QAction *action) const
 {
     switch (ID(action))
 	{
-	case FP_TEST_DP_CLOSE_HOLE:
-		return MeshModel::MM_FACENUMBER;
 	case FP_FILLING_HOLE:
 		return MeshModel::MM_FACENUMBER;
 	}
@@ -242,8 +234,6 @@ int FilterFillHolePlugin::postCondition(const QAction *action) const
 {
 	switch (ID(action))
 	{
-	case FP_TEST_DP_CLOSE_HOLE:
-		return MeshModel::MM_GEOMETRY_AND_TOPOLOGY_CHANGE;
 	case FP_FILLING_HOLE:
 		return MeshModel::MM_GEOMETRY_AND_TOPOLOGY_CHANGE + MeshModel::MM_TRANSFMATRIX;
 	}
@@ -272,12 +262,7 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 
 	switch (ID(action))
 	{
-	case FP_TEST_DP_CLOSE_HOLE:
-		parlst.addParam(RichInt ("MaxHoleSize",(int)30,"Max size to be closed ","The size is expressed as number of edges composing the hole boundary"));
-		parlst.addParam(RichBool("Selected",m.cm.sfn>0,"Close holes with selected faces","Only the holes with at least one of the boundary faces selected are closed"));
-		parlst.addParam(RichBool("NewFaceSelected",true,"Select the newly created faces","After closing a hole the faces that have been created are left selected. Any previous selection is lost. Useful for example for smoothing the newly created holes."));
-		parlst.addParam(RichBool("SelfIntersection",true,"Prevent creation of selfIntersecting faces","When closing an holes it tries to prevent the creation of faces that intersect faces adjacent to the boundary of the hole. It is an heuristic, non intersetcting hole filling can be NP-complete."));
-		break;
+
 	case FP_FILLING_HOLE:
 	{
 		QStringList algoType;
@@ -290,7 +275,6 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
         parlst.addParam(RichInt("max_hole_size", int(0), "Max hole size", "Size of a hole is the number of boundary face of that hole"));
 		// optional flags
 		parlst.addParam(RichBool("selected", m.cm.sfn>0, "Apply algorithm with selected faces", "Only the holes with at least one of the boundary faces selected are applied"));
-		// parlst.addParam(RichBool("one_ring", false, "Apply algorithm to fill one ring only", "Fill the hole one ring to the center"));
         parlst.addParam(RichBool("prevent_rotate", false, "Prevent rotate the hole", "Prevent rotate the mesh to move hole centroid to z-axis"));
 		parlst.addParam(RichBool("enable_border_color", false, "Change color of boundary faces and boundary vertexes"));
 	}
@@ -318,38 +302,6 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 	MeshModel &m = *(md.mm());
 	switch (ID(action))
 	{
-	case FP_TEST_DP_CLOSE_HOLE:
-	{
-		m.updateDataMask(MeshModel::MM_FACEFACETOPO);
-		if (tri::Clean<CMeshO>::CountNonManifoldEdgeFF(m.cm) > 0)
-		{
-			throw MLException("Mesh has some not 2-manifold edges, filter requires edge manifoldness");
-		}
-
-		size_t OriginalSize = m.cm.face.size();
-		int MaxHoleSize = par.getInt("MaxHoleSize");
-		bool SelectedFlag = par.getBool("Selected");
-		bool SelfIntersectionFlag = par.getBool("SelfIntersection");
-		bool NewFaceSelectedFlag = par.getBool("NewFaceSelected");
-		int holeCnt;
-		if (SelfIntersectionFlag)
-			holeCnt = tri::Hole<CMeshO>::EarCuttingIntersectionFill<tri::SelfIntersectionEar<CMeshO>>(m.cm, MaxHoleSize, SelectedFlag, cb);
-		else
-			holeCnt = tri::Hole<CMeshO>::EarCuttingFill<vcg::tri::MinimumWeightEar<CMeshO>>(m.cm, MaxHoleSize, SelectedFlag, cb);
-		log("Closed %i holes and added %i new faces",holeCnt,m.cm.fn-OriginalSize);
-		assert(tri::Clean<CMeshO>::IsFFAdjacencyConsistent(m.cm));
-		m.UpdateBoxAndNormals();
-
-		// hole filling filter does not correctly update the border flags (but the topology is still ok!)
-		if (NewFaceSelectedFlag)
-		{
-			tri::UpdateSelection<CMeshO>::FaceClear(m.cm);
-			for (size_t i = OriginalSize; i < m.cm.face.size(); ++i)
-				if (!m.cm.face[i].IsD())
-					m.cm.face[i].SetS();
-		}
-		break;
-	}
 	case FP_FILLING_HOLE:
 	{
 		m.updateDataMask(MeshModel::MM_FACECOLOR);
@@ -365,18 +317,8 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 
 		// get parameters
 		bool enableBorderColor = par.getBool("enable_border_color");
-		// Point3m ucentroid = par.getPoint3m("hole_centroid");
-		Point3m ucentroid(0, 0, 0);
-		// float expectedEdgeLength = par.getFloat("expect_edge_length");
-		float expectedEdgeLength = 0;
-		// float thresholdRatio = par.getFloat("threshold_ratio");
-		float thresholdRatio = 1;
-		// float adjustRatio = par.getFloat("adjust_ratio");
-		float adjustRatio = 0;
         float maxHoleSize = par.getInt("max_hole_size");
 		bool selected = par.getBool("selected"); 
-		// bool isOneRing = par.getBool("one_ring");
-		bool isOneRing = false;
 		bool preventRotate = par.getBool("prevent_rotate");
 
 		int borderVBit = CVertexO::NewBitFlag();
@@ -393,13 +335,13 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
         {
 			if((*fi).IsD())
 			{
+				// ignore face with Deleted flag
 				continue;
 			}
 
 			if(selected && !(*fi).IsS())
 			{
-				//if I have to consider only the selected triangles e
-				//what I'm considering isn't marking it and moving on
+				// ignore unselected face by set visited
 				(*fi).SetV();
 				continue;
 			}
@@ -407,7 +349,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 			for(int j =0; j<3 ; ++j)
 			{
 				if( face::IsBorder(*fi,j) && !(*fi).IsV() )
-				{//Found a board face not yet visited.
+				{//Found a boundary face not yet visited.
 					(*fi).SetV();
 					tri::Hole<CMeshO>::PosType sp(&*fi, j, (*fi).V(j));
 					tri::Hole<CMeshO>::PosType fp=sp;
@@ -421,38 +363,21 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					do
 					{
 						sp.f->SetV();
-						// hbox.Add(sp.v->cP());
-						// ++holesize;
 						sp.NextB();
 						sp.f->SetV();
 
-						// Set corlor of border face, vertex
-						// sp.f->C().SetHSVColor(0, 1.0f, 1.0f);
-						// Set corlor of extended boundary
 						sp.v->SetUserBit(borderVBit);
 						CVertexO* expandedFP = sp.f->V2(sp.z);
-
-						// if (!expandedFP->IsUserBit(expandedVBit)) {
-							// expandedFP->C() = vcg::Color4b(255, 255, 0, 255);
-						// }
 
 						N_LOG_FIND_VERT("Border Vertex index %i coord (x, y, z): (%f, %f, %f) index %d \n", 
 							sp.v->Index(), sp.v->P().X(), sp.v->P().Y(), sp.v->P().Z(), sp.v->Index());
 						N_LOG_FIND_VERT("Extended Vertex index %i coord (x, y, z): (%f, %f, %f) index %d \n", 
 							expandedFP->Index(), expandedFP->P().X(), expandedFP->P().Y(), expandedFP->P().Z(), expandedFP->Index());
 
-						// int vIndex = sp.v->Index();
-
-						// qDebug("Border Vertex index %i coord (x, y, z): (%f, %f, %f) \n", vIndex, sp.v->P().X(), sp.v->P().Y(), sp.v->P().Z());
 						vBorderIndex.push_back(sp.v->Index());
 						vFaceIndex.push_back(sp.f->Index());
 						vertInfo.vHoleVertIndex.push_back(sp.v->Index());
 						vertInfo.vExpHoleVertIndex.push_back(expandedFP->Index());
-						// vertInfo.vZChange.push_back(zChange);
-						// std::vector<int> vExpVertIdx = getExpandedVertexIndex(sp.v);
-						// vertInfo.vSetExpVertIndex.push_back(vExpVertIdx);
-						// HoleVertData vData = { vIndex, vExpVertIdx, expandedFP->P() };
-						// vHoleVertData.push_back(vData);
 
 						assert(sp.IsBorder());
 					}while(sp != fp);
@@ -464,7 +389,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					vHoleFaceIndex.push_back(vFaceIndex);
 
 				}
-			}//end for edges of the triangle
+			}//end for edges of the triangle face
 
 		}//end for faces of the mesh!!!
 
@@ -492,7 +417,6 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 				for (int fi: faceIdx)
 				{
 					cm.face[fi].C() = vcg::Color4b(255, 0, 0, 255);
-					// cm.face[fi].C().SetHSVColor(0, 1.0f, 1.0f);
 					// break;
 				}
 			}
@@ -518,18 +442,13 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					holeCenter = CalcHoleCenter(cm, vVertIndex); // re-calc after rotate
 					log("Center hole after rotate (x, y, z) = (%f, %f, %f)", holeCenter.X(), holeCenter.Y(), holeCenter.Z());
 
-					float edgeLength = expectedEdgeLength;
-					if (edgeLength <= 0) {
-						edgeLength = CalcAvgHoleEdge(cm, vVertIndex);
-					}
-
-					bool stepByStep = isOneRing;
+					float edgeLength = CalcAvgHoleEdge(cm, vVertIndex);
 
 					float centerZChange = CalcCenterZChangeUsingAvgExpVertex(cm, holeCenter, edgeLength, vVertIndex, hole.vExpHoleVertIndex);
 					holeCenter.Z() = holeCenter.Z() + centerZChange;
 					log("Center hole after change z (x, y, z) = (%f, %f, %f) and dz %f", holeCenter.X(), holeCenter.Y(), holeCenter.Z(), centerZChange);
 
-                    FillHoleRingByRingRefined(cm, vVertIndex, edgeLength, holeCenter, stepByStep, centerZChange, adjustRatio);
+                    FillHoleRingByRingRefined(cm, vVertIndex, edgeLength, holeCenter, centerZChange);
 
 					// revert the rotation
 					rotateInverse(md, transMt);

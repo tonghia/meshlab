@@ -488,7 +488,7 @@ void FillHoleByCenterRefined(CMeshO& cm, std::vector<int> hole, float extra, flo
 	return;
 }
 
-void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvgEdge, Point3m holeCenter, bool stepByStep, float zChange, float adjustRatio)
+void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvgEdge, Point3m holeCenter, float zChange)
 {
 	Point3m centerPoint = holeCenter;
 
@@ -578,13 +578,7 @@ void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvg
 					QString::number(stepCenter), QString::number(index), QString::number(vi->Index()),
 					QString::number(cm.vert[index].P().X()), QString::number(cm.vert[index].P().Y()), QString::number(cm.vert[index].P().Z())
 				));
-				// fillPoint.Z() = cm.vert[index].P().Z() * 1.073515;
-				// if (stepCenter >= 2) {
-					// fillPoint.Z() += centerZChange * (dRatio - 1) * adjustRatio;
-					// qDebug("LogRatio During fill Border Vertex index %f \n", centerZChange * (dRatio - 1) * adjustRatio);
-				// }
-				// float czChange = fillPoint.Z() - cm.vert[index].P().Z();
-				// fillPoint.Z() += czChange * adjustRatio;
+
 				vi->P() = fillPoint;
 				vi->C() = vcg::Color4b(0, 255, 255, 255);
 				fillIndex = vi->Index();
@@ -622,10 +616,6 @@ void FillHoleRingByRingRefined(CMeshO& cm, std::vector<int> hole, float startAvg
 		}
 
 		hole = reducedHole;
-
-		if (stepByStep) {
-			break;
-		}
 	}
 	
 	return;
