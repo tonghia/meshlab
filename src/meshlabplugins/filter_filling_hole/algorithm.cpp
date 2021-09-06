@@ -349,7 +349,7 @@ float CalcCenterZChangeUsingAvgExpVertex(CMeshO& cm, Point3m center, float avgEd
 		}
 	}
 
-    return ((totalBoundaryZ - totalExpandZ) / hole.size()) * minFactor;
+    return (totalBoundaryZ / hole.size() - totalExpandZ / expHole.size()) * minFactor;
 }
 
 void FillHoleByCenter(CMeshO& cm, std::vector<int> hole, float extra, float ratio)
