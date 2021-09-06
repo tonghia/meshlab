@@ -10,7 +10,7 @@ class FilterFillHolePlugin : public QObject, public FilterPlugin
 	Q_INTERFACES(FilterPlugin)
 
 public:
-	enum { FP_TEST_DP_CLOSE_HOLE, FP_TEST_CLOSE_HOLE } ;
+	enum { FP_TEST_DP_CLOSE_HOLE, FP_FILLING_HOLE } ;
 
 	FilterFillHolePlugin();
 

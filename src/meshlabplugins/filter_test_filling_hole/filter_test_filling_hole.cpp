@@ -163,7 +163,7 @@ FilterFillHolePlugin::FilterFillHolePlugin()
 
 QString FilterFillHolePlugin::pluginName() const
 {
-	return "FilterCloseHole";
+	return "FilterTestCloseHole";
 }
 
 FilterFillHolePlugin::FilterClass FilterFillHolePlugin::getClass(const QAction * a) const
@@ -171,7 +171,7 @@ FilterFillHolePlugin::FilterClass FilterFillHolePlugin::getClass(const QAction *
 	switch (ID(a))
 	{
 	case FP_TEST_DP_CLOSE_HOLE: return FilterPlugin::NTest;
-	case FP_TEST_CLOSE_HOLE: return FilterPlugin::Remeshing;
+	case FP_TEST_CLOSE_HOLE: return FilterPlugin::NTest;
 
 	default: assert(0); return FilterPlugin::Generic;
 	}
@@ -192,7 +192,7 @@ QString FilterFillHolePlugin::filterName(ActionIDType filterId) const
 	case FP_TEST_DP_CLOSE_HOLE:
 		return "Test ML close hole";
 	case FP_TEST_CLOSE_HOLE:
-		return "Filling hole on mesh";
+		return "Test filling hole on mesh";
 	default:
 		return "";
 	}

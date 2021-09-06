@@ -140,7 +140,7 @@ FilterFillHolePlugin::FilterFillHolePlugin()
 {
 	typeList = {
         FP_TEST_DP_CLOSE_HOLE,
-		FP_TEST_CLOSE_HOLE
+		FP_FILLING_HOLE
     };
 
 	QCoreApplication *app = QCoreApplication::instance();
@@ -151,7 +151,7 @@ FilterFillHolePlugin::FilterFillHolePlugin()
 
         if (app != nullptr)
         {
-            if (tt == FP_TEST_CLOSE_HOLE)
+            if (tt == FP_FILLING_HOLE)
             {
                 //				act->setShortcut(QKeySequence ("Ctrl+Del"));
                 act->setIcon(QIcon(":/images/fill_hole.svg"));
@@ -163,7 +163,7 @@ FilterFillHolePlugin::FilterFillHolePlugin()
 
 QString FilterFillHolePlugin::pluginName() const
 {
-	return "FilterCloseHole";
+	return "FilterFillingHoleOnMesh";
 }
 
 FilterFillHolePlugin::FilterClass FilterFillHolePlugin::getClass(const QAction * a) const
@@ -171,7 +171,7 @@ FilterFillHolePlugin::FilterClass FilterFillHolePlugin::getClass(const QAction *
 	switch (ID(a))
 	{
 	case FP_TEST_DP_CLOSE_HOLE: return FilterPlugin::NTest;
-	case FP_TEST_CLOSE_HOLE: return FilterPlugin::Remeshing;
+	case FP_FILLING_HOLE: return FilterPlugin::Remeshing;
 
 	default: assert(0); return FilterPlugin::Generic;
 	}
@@ -191,7 +191,7 @@ QString FilterFillHolePlugin::filterName(ActionIDType filterId) const
 	{
 	case FP_TEST_DP_CLOSE_HOLE:
 		return "Test ML close hole";
-	case FP_TEST_CLOSE_HOLE:
+	case FP_FILLING_HOLE:
 		return "Filling hole on mesh";
 	default:
 		return "";
@@ -210,7 +210,7 @@ QString FilterFillHolePlugin::filterInfo(ActionIDType filterId) const
 	{
 	case FP_TEST_DP_CLOSE_HOLE:
 		return "Test close hole with Meshlab algorithm";
-	case FP_TEST_CLOSE_HOLE:
+	case FP_FILLING_HOLE:
 		return "Our proposed method for filling hole on mesh";
 	default:
 		return "Unknown Filter";
@@ -227,7 +227,7 @@ int FilterFillHolePlugin::getPreConditions(const QAction *action) const
 	{
 	case FP_TEST_DP_CLOSE_HOLE:
 		return MeshModel::MM_FACENUMBER;
-	case FP_TEST_CLOSE_HOLE:
+	case FP_FILLING_HOLE:
 		return MeshModel::MM_FACENUMBER;
 	}
 
@@ -244,7 +244,7 @@ int FilterFillHolePlugin::postCondition(const QAction *action) const
 	{
 	case FP_TEST_DP_CLOSE_HOLE:
 		return MeshModel::MM_GEOMETRY_AND_TOPOLOGY_CHANGE;
-	case FP_TEST_CLOSE_HOLE:
+	case FP_FILLING_HOLE:
 		return MeshModel::MM_GEOMETRY_AND_TOPOLOGY_CHANGE + MeshModel::MM_TRANSFMATRIX;
 	}
 
@@ -278,20 +278,15 @@ void FilterFillHolePlugin::initParameterList(const QAction *action, MeshModel &m
 		parlst.addParam(RichBool("NewFaceSelected",true,"Select the newly created faces","After closing a hole the faces that have been created are left selected. Any previous selection is lost. Useful for example for smoothing the newly created holes."));
 		parlst.addParam(RichBool("SelfIntersection",true,"Prevent creation of selfIntersecting faces","When closing an holes it tries to prevent the creation of faces that intersect faces adjacent to the boundary of the hole. It is an heuristic, non intersetcting hole filling can be NP-complete."));
 		break;
-	case FP_TEST_CLOSE_HOLE:
+	case FP_FILLING_HOLE:
 	{
 		QStringList algoType;
 		algoType.push_back("Fill large hole ring by ring");
 		algoType.push_back("Fill small hole by centroid point");
 		algoType.push_back("Rotate hole centroid to Oz");
 		algoType.push_back("Get hole information");
-		algoType.push_back("Test no rotate");
-		algoType.push_back("Test slope");
+
 		parlst.addParam(RichEnum("algo", 0, algoType, tr("Algorithm type"), tr("Choose the algorithm to close hole")));
-		// parlst.addParam(RichPoint3f("hole_centroid", Point3f(0,0,0), "Centroid point", "Centroid point of a hole for running step by step"));
-        // parlst.addParam(RichFloat("expect_edge_length", 0, "Boundary edge length", "If value = 0 then expected edge length is the average hole edges"));
-        // parlst.addParam(RichFloat("threshold_ratio", 1.0, "Threshold ratio", "Threshold = Threhold ratio * Expected edge length"));
-		// parlst.addParam(RichDynamicFloat("adjust_ratio", 0.0f, 0.0f, 1.0f, "Adjustment z-coordinate ratio", "Adjustment ratio to adjust z-coordinate when filling new points"));
         parlst.addParam(RichInt("max_hole_size", int(0), "Max hole size", "Size of a hole is the number of boundary face of that hole"));
 		// optional flags
 		parlst.addParam(RichBool("selected", m.cm.sfn>0, "Apply algorithm with selected faces", "Only the holes with at least one of the boundary faces selected are applied"));
@@ -355,7 +350,7 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 		}
 		break;
 	}
-	case FP_TEST_CLOSE_HOLE:
+	case FP_FILLING_HOLE:
 	{
 		m.updateDataMask(MeshModel::MM_FACECOLOR);
 		m.updateDataMask(MeshModel::MM_FACEFACETOPO);
@@ -416,23 +411,11 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					(*fi).SetV();
 					tri::Hole<CMeshO>::PosType sp(&*fi, j, (*fi).V(j));
 					tri::Hole<CMeshO>::PosType fp=sp;
-					// int holesize=0;
-
-					// (*fi).C() = vcg::Color4b(255, 0, 255, 255);
-					// CVertexO* v1 = (*fi).V(j);
-					// (*v1).C() = vcg::Color4b(255, 0, 255, 255);
-					// CVertexO* v2 = (*fi).V((j + 1) % 3);
-					// (*v2).C() = vcg::Color4b(255, 0, 255, 255);
 
 					N_LOG_FIND_VERT("Hole %i detected \n", vHoleVertInfo.size() + 1);
 					std::vector<int> vBorderIndex;
 					std::vector<int> vFaceIndex;					
-					// float ratio = 0;
 					HoleVertInfo vertInfo;
-					// std::vector<HoleVertData> vHoleVertData;
-
-					// tri::Hole<CMeshO>::Box3Type hbox;
-					// hbox.Add(sp.v->cP());
 
 					sp.f->SetV();
 					do
@@ -535,74 +518,13 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
 					holeCenter = CalcHoleCenter(cm, vVertIndex); // re-calc after rotate
 					log("Center hole after rotate (x, y, z) = (%f, %f, %f)", holeCenter.X(), holeCenter.Y(), holeCenter.Z());
 
-					// compute z-change
-					std::vector<float> vZChange2;
-					// for (int i = 0; i < vVertIndex.size(); i++) {
-					// 	int bIdx = vVertIndex[i];
-
-					// 	Point3m avgExpPoint(0, 0, 0);
-					// 	int count = 0;
-					// 	std::vector<int> vExpVertIdx = hole.vSetExpVertIndex[i];
-					// 	if (vExpVertIdx.size() < 2) {
-					// 		assert(false);
-                    //     } else if (vExpVertIdx.size() == 2) {
-                    //         avgExpPoint += (cm.vert[vExpVertIdx[0]].P() + cm.vert[vExpVertIdx[1]].P());
-					// 		count = 2;
-					// 	} else {
-					// 		for (int expIdx: vExpVertIdx) {
-					// 			// cm.vert[expIdx].C() = vcg::Color4b::Red;
-					// 			if (cm.vert[expIdx].IsUserBit(borderVBit)) {
-					// 				continue;
-					// 			}
-
-					// 			avgExpPoint += cm.vert[expIdx].P();
-					// 			++count;
-					// 		}
-					// 	}
-                    //     // assert(count);
-
-                    //     if (count == 0) {
-                    //         for (int expIdx: vExpVertIdx) {
-
-                    //             avgExpPoint += cm.vert[expIdx].P();
-                    //             ++count;
-                    //         }
-                    //     }
-					// 	// if (count == 0) {
-					// 	// 	cm.vert[bIdx].C() = vcg::Color4b::Red;
-					// 	// 	stop = true;
-					// 	// 	break;
-					// 	// }
-					// 	avgExpPoint /= count;
-					// 	float zChange = cm.vert[bIdx].P().Z() - avgExpPoint.Z();
-					// 	// assert(zChange == zChange);
-					// 	vZChange2.push_back(zChange);
-					// 	hole.vExpPoint.push_back(avgExpPoint);
-					// 	// Point3m bPoint = cm.vert[bIdx].P();
-					// 	// float dxy = sqrt( pow(avgExpPoint.X() - bPoint.X(), 2) + pow(avgExpPoint.Y() - bPoint.Y(), 2) );
-					// 	// float sl = zChange / dxy;
-					// 	// hole.vSlope.push_back(sl);
-					// }
-                    // assert(hole.vZChange.size() == hole.vSlope.size());
-					// hole.vZChange = hole.vSlope;
-					// hole.vZChange = vZChange2;
-
 					float edgeLength = expectedEdgeLength;
 					if (edgeLength <= 0) {
 						edgeLength = CalcAvgHoleEdge(cm, vVertIndex);
 					}
-					// float holeThreshold = edgeLength * thresholdRatio;
-					// if (holeThreshold <= 0) {
-                    //     holeThreshold = edgeLength;
-					// } 
-					bool stepByStep = isOneRing;
-                    // qDebug("start one hole filling with threshold %f", holeThreshold);
-					// if (stop) {
-					// 	break;
-					// }
 
-					// float centerZChange = calcCenterZChange(cm, holeCenter, edgeLength, vVertIndex, hole.vZChange);
-					// float centerZChange = CalcCenterZChangeUsingExpVertex(cm, holeCenter, edgeLength, vVertIndex, hole.vExpHoleVertIndex);
+					bool stepByStep = isOneRing;
+
 					float centerZChange = CalcCenterZChangeUsingAvgExpVertex(cm, holeCenter, edgeLength, vVertIndex, hole.vExpHoleVertIndex);
 					holeCenter.Z() = holeCenter.Z() + centerZChange;
 					log("Center hole after change z (x, y, z) = (%f, %f, %f) and dz %f", holeCenter.X(), holeCenter.Y(), holeCenter.Z(), centerZChange);
@@ -676,113 +598,6 @@ std::map<std::string, QVariant> FilterFillHolePlugin::applyFilter(
     			QGridLayout* layout = (QGridLayout*)msgBox.layout();
     			layout->addItem(horizontalSpacer, layout->rowCount(), 0, 1, layout->columnCount());
 				msgBox.exec();
-			} break;
-			
-			case 4:
-			{
-				for (HoleVertInfo hole: vHoleVertInfo) {
-
-					std::vector<int> vVertIndex = hole.vHoleVertIndex;
-
-                    if (maxHoleSize > 0 && vVertIndex.size() > maxHoleSize) {
-						continue;
-					}
-
-					Point3m holeCenter = CalcHoleCenter(cm, vVertIndex);
-
-					// compute z-change
-					std::vector<Point3m> vChange;
-					for (int i = 0; i < vVertIndex.size(); i++) {
-						int bIdx = vVertIndex[i];
-
-						Point3m avgExpPoint(0, 0, 0);
-						int count = 0;
-						std::vector<int> vExpVertIdx = hole.vSetExpVertIndex[i];
-						if (vExpVertIdx.size() < 2) {
-							assert(false);
-                        } else if (vExpVertIdx.size() == 2) {
-                            avgExpPoint += (cm.vert[vExpVertIdx[0]].P() + cm.vert[vExpVertIdx[1]].P());
-							count = 2;
-						} else {
-							for (int expIdx: vExpVertIdx) {
-								// cm.vert[expIdx].C() = vcg::Color4b::Red;
-								if (cm.vert[expIdx].IsUserBit(borderVBit)) {
-									continue;
-								}
-
-								avgExpPoint += cm.vert[expIdx].P();
-								++count;
-							}
-						}
-                        // assert(count);
-
-                        if (count == 0) {
-                            for (int expIdx: vExpVertIdx) {
-
-                                avgExpPoint += cm.vert[expIdx].P();
-                                ++count;
-                            }
-                        }
-						// if (count == 0) {
-						// 	cm.vert[bIdx].C() = vcg::Color4b::Red;
-						// 	stop = true;
-						// 	break;
-						// }
-						avgExpPoint /= count;
-						Point3m cChange = cm.vert[bIdx].P() - avgExpPoint;
-						// assert(zChange == zChange);
-						// vZChange2.push_back(zChange);
-						hole.vExpPoint.push_back(avgExpPoint);
-						// Point3m bPoint = cm.vert[bIdx].P();
-						// float dxy = sqrt( pow(avgExpPoint.X() - bPoint.X(), 2) + pow(avgExpPoint.Y() - bPoint.Y(), 2) );
-						// float sl = zChange / dxy;
-						// hole.vSlope.push_back(sl);
-					}
-                    // assert(hole.vZChange.size() == hole.vSlope.size());
-					// hole.vZChange = hole.vSlope;
-					// hole.vZChange = vZChange2;
-
-					float edgeLength = expectedEdgeLength;
-					if (edgeLength <= 0) {
-						edgeLength = CalcAvgHoleEdge(cm, vVertIndex);
-					}
-					// float holeThreshold = edgeLength * thresholdRatio;
-					// if (holeThreshold <= 0) {
-                    //     holeThreshold = edgeLength;
-					// } 
-					bool stepByStep = isOneRing;
-                    // qDebug("start one hole filling with threshold %f", holeThreshold);
-					// if (stop) {
-					// 	break;
-					// }
-
-					Point3m centerChange = CalcCenterChange(cm, holeCenter, edgeLength, vVertIndex, hole.vExpPoint);
-					holeCenter = holeCenter + centerChange;
-
-                    FillHoleRingByRingRefined(cm, vVertIndex, edgeLength, holeCenter, stepByStep, 0.0, adjustRatio);
-
-					qDebug("End one hole filling");
-				}
-			} break;
-
-			case 5:
-			{
-				for (HoleVertInfo hole: vHoleVertInfo) {
-
-					std::vector<int> vVertIndex = hole.vHoleVertIndex;
-
-                    if (maxHoleSize > 0 && vVertIndex.size() > maxHoleSize) {
-						continue;
-					}
-
-					Point3m holeCenter = CalcHoleCenter(cm, vVertIndex);
-
-					// compute slope
-					// compute z-change
-					// compute hole center
-					// fill hole
-
-				}
 			} break;
 
 			default:
